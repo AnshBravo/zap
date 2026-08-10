@@ -1,0 +1,111 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Get a free hosted Postgres database in seconds: `npx create-db`
+
+generator client { // generator client tells prisma to generate a custom, type-safe TypeScript query client
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+  importFileExtension = "ts"
+}
+
+datasource db { // datasource db specifies that we are using postgresql. 
+  provider = "postgresql"
+}
+
+// @id marks the column as primary key
+// @unique tells that the column will have unique values
+// String? tells that this can be optional
+// @default(cuid()) Automatically generates Collision-Resistant Unique Identifiers (monotonically increasing time-sortable strings).// @default(now()) Automatically sets the timestamp to the current time when a record is created.
+//@updatedAt Prisma automatically sets the timestamp to current time whenever a new record is created.
+// @@id([...]) creates a composite primary key using multiple columns.
+// @@unique([...]) creates a composite unique index across multiple columns
+// @@index([...]) creates index to fasten the data lookup.
+
+// User Table
+model User {
+  id String @id @default(cuid()) // Using default with cuid will create new id's automatically using long random strings.
+  username String @unique 
+  email String @unique
+  passwordHash String
+  bio String?
+  avatarUrl String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relation: A user can create many posts
+  posts Post[]
+  likes Like[]
+  comments Comment[]
+
+  followedBy Follows[] @relation("following")
+  following Follows[] @relation("follower")
+}
+
+// Post Table
+model Post {
+  id String @id @default(cuid())
+  content String
+  imageUrl String? // optional as image will be attached to some posts not all
+  authorId String 
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  //Relations
+  author User @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  likes Like[]
+  comments Comment[]
+
+  // Indexes for high-performance feed queries
+  @@index([authorId])
+  @@index([createdAt(sort: Desc)])
+}
+
+model Like {
+ id String @id @default(cuid())
+ userId String
+ postId String
+ createdAt DateTime @default(now())
+
+ // Relations
+ user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+ post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+ // Enforce 1 like per user per post
+ @@unique([userId, postId]) // this means in our database two rows having the same userId and postId cannot exist hence only 1 like
+
+ // Index for quickly looking up all likes for a post
+ @@index([postId, createdAt(sort: Desc)])
+}
+
+model Comment {
+  id String @id @default(cuid())
+  content String
+  userId String
+  postId String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+   post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+   // Index for loading post comments ordered by newest/oldest
+   @@index([postId, createdAt(sort: Desc)])
+
+}
+
+model Follows {
+  followerId String 
+  followingId String
+  createdAt DateTime @default(now())
+
+  // Relations
+  follower User @relation("follower", fields: [followerId], references: [id], onDelete: Cascade)
+  following User @relation("following", fields: [followingId], references: [id], onDelete: Cascade)
+
+  @@id([followerId, followingId]) // A user cannot follow the same person twice
+
+  // Index to quickly query who is following a specific user
+  @@index([followingId])
+}
