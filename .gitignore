@@ -1,0 +1,19 @@
+# Root .gitignore
+
+# Node dependencies
+node_modules/
+
+# Environment files (Secrets here!)
+.env 
+.env.local
+
+# Build outputs
+dist/
+build/
+
+# Prisma generated outputs (if local)
+/server/prisma/generated
+
+# OS/Editor Specific files
+.DS_Store
+.vscode/
