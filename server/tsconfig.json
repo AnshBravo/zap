@@ -1,0 +1,14 @@
+{
+  "compilerOptions": {
+    "target": "es2025", // Tell Typescript to compile modern Javascript features.
+    "module": "nodenext", // module & moduleResolution enables native ES modules(like import/export syntax) in Node.js.
+    "moduleResolution": "nodenext",
+    "rootDir": "./src", // rootDir specifies that typescript source code will live inside server/src/.
+    "outDir": "./dist", // outDir tells TypeScript where to put compiled plain JS files when building for production.
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
+    "strict": true, // strict turns on all type-checking safety rules
+    "skipLibCheck": true
+  },
+  "include": ["src/**/*"]
+}
