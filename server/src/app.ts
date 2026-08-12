@@ -3,6 +3,7 @@ import cors from "cors";
 import authRoutes from "./routes/auth.routes.js";
 import userRoutes from "./routes/user.routes.js";
 import postRoutes from "./routes/post.routes.js";
+import commentRoutes from "./routes/comment.routes.js";
 import { errorHandler } from "./middlewares/error.middleware.js";
 
 const app: Express = express();
@@ -19,6 +20,7 @@ app.get("/health", (_req: Request, res: Response) => {
 app.use("/api/v1/auth", authRoutes);
 app.use("/api/v1/users", userRoutes);
 app.use("/api/v1/posts", postRoutes);
+app.use("/api/v1/comments", commentRoutes);
 
 app.use(errorHandler);
 
