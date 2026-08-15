@@ -2,7 +2,7 @@ import { Request, Response } from "express";
 import asyncHandler from "../utils/asyncHandler.js";
 import { ApiError } from "../utils/ApiError.js";
 import { prisma } from "../db/prisma.js";
-import { availableMemory } from "node:process";
+import { getIO } from "../socket.js";
 
 //@route POST /api/v1/posts/:postId/like
 //@desc Toggle like/unlike
@@ -24,7 +24,7 @@ export const toggleLike = asyncHandler(
     // check if post exists
     const post = await prisma.post.findUnique({
       where: { id: postId },
-      select: { id: true },
+      select: { id: true, authorId: true },
     });
 
     if (!post) {
@@ -66,6 +66,20 @@ export const toggleLike = asyncHandler(
       },
     });
 
+    if (post.authorId !== userId) {
+      try {
+        const io = getIO();
+        io.to(`user:${post.authorId}`).emit("notification", {
+          type: "LIKE",
+          message: `Someone liked your post!`,
+          postId,
+          triggeredBy: userId,
+        });
+      } catch (err) {
+        console.error("Socket emit failed:", err);
+      }
+    }
+
     res.status(201).json({
       status: "success",
       message: "Post liked successfully",
@@ -100,7 +114,7 @@ export const addComment = asyncHandler(
       where: {
         id: postId,
       },
-      select: { id: true },
+      select: { id: true, authorId: true },
     });
 
     if (!post) {
@@ -123,6 +137,25 @@ export const addComment = asyncHandler(
         },
       },
     });
+
+    if (post.authorId !== userId) {
+      try {
+        const io = getIO();
+        io.to(`user:${post.authorId}`).emit("notification", {
+          type: "COMMENT",
+          message: `@${comment.user.username} commented on your post!`,
+          postId,
+          commentId: comment.id,
+          triggeredBy: {
+            id: comment.user.id,
+            username: comment.user.username,
+            avatarUrl: comment.user.avatarUrl,
+          },
+        });
+      } catch (err) {
+        console.error("Socket emit failed:", err);
+      }
+    }
     res.status(201).json({
       status: "success",
       data: { comment },

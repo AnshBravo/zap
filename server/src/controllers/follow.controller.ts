@@ -2,6 +2,7 @@ import { Request, Response } from "express";
 import asyncHandler from "../utils/asyncHandler.js";
 import { ApiError } from "../utils/ApiError.js";
 import { prisma } from "../db/prisma.js";
+import { getIO } from "../socket.js";
 
 //@route POST /api/v1/users/:targetUserId/follow
 //@desc Toggle follow / unfollow a user
@@ -68,6 +69,17 @@ export const toggleFollow = asyncHandler(
         followingId: targetUserId,
       },
     });
+
+    try {
+      const io = getIO();
+      io.to(`user: ${targetUserId}`).emit("notification", {
+        type: "FOLLOW",
+        message: `A user started following you`,
+        followerId: currentUserId,
+      });
+    } catch (err) {
+      console.error("Socket emit error:", err);
+    }
 
     res.status(201).json({
       status: "success",
