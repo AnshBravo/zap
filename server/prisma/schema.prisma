@@ -40,6 +40,10 @@ model User {
 
   followedBy Follows[] @relation("following")
   following Follows[] @relation("follower")
+
+  // messages relation
+  sentMessages Message[] @relation("SentMessages")
+  receivedMessages Message[] @relation("ReceivedMessages")
 }
 
 // Post Table
@@ -108,4 +112,17 @@ model Follows {
 
   // Index to quickly query who is following a specific user
   @@index([followingId])
+}
+
+model Message {
+  id String @id @default(cuid())
+  content String
+  senderId String
+  receiverId String
+  createdAt DateTime @default(now())
+
+  sender User @relation("SentMessages", fields: [senderId], references: [id], onDelete: Cascade)
+  receiver User @relation("ReceivedMessages", fields: [receiverId], references: [id], onDelete: Cascade)
+
+  @@index([senderId, receiverId])
 }
