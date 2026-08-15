@@ -1,6 +1,8 @@
 import { Server as HTTPServer } from "http";
 import { Server, Socket } from "socket.io";
+import { prisma } from "./db/prisma.js";
 import jwt from "jsonwebtoken";
+import { userInfo } from "os";
 
 let io: Server;
 
@@ -41,6 +43,38 @@ export const initSocket = (server: HTTPServer): Server => {
     if (socket.userId) {
       socket.join(`user:${socket.userId}`);
     }
+
+    socket.on(
+      "send_message",
+      async (data: { receiverId: string; content: string }) => {
+        try {
+          const senderId = socket.userId;
+          const { receiverId, content } = data;
+
+          if (!senderId || !receiverId || !content?.trim()) return;
+
+          const message = await prisma.message.create({
+            data: {
+              senderId,
+              receiverId,
+              content: content.trim(),
+            },
+            include: {
+              sender: {
+                select: { id: true, username: true, avatarUrl: true },
+              },
+            },
+          });
+
+          io.to(`user:${receiverId}`).emit("receive_message", message);
+
+          socket.emit("message_sent", message);
+        } catch (err) {
+          console.error("Error sending socket message:", err);
+          socket.emit("error", { message: "Failed to deliver message." });
+        }
+      },
+    );
 
     socket.on("disconnect", () => {
       console.log(`Socket disconnect: ${socket.id}`);
