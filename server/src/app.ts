@@ -11,7 +11,13 @@ const app: Express = express();
 
 // Middlewares
 app.use(express.json());
-app.use(cors());
+app.use(
+  cors({
+    origin: process.env.CLIENT_URL || "http://localhost:5173",
+    methods: ["GET", "POST", "DELETE"],
+    allowedHeaders: ["Content-Type"],
+  }),
+);
 
 // Health Check Route
 app.get("/health", (_req: Request, res: Response) => {
