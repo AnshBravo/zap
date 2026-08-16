@@ -30,6 +30,8 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
       root.classList.remove("dark");
     }
     localStorage.setItem("zap_theme", theme);
+    // Log theme change for debugging
+    console.log(`Theme changed to: ${theme}`);
   }, [theme]);
 
   const toggleTheme = () => {

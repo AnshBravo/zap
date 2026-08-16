@@ -1,13 +1,15 @@
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom"; // Import the routing functions
 import { useAuth } from "./context/AuthContext";
 import type { ReactElement } from "react";
+
+// Import Pages
+import LoginPage from "./pages/LoginPage";
+import RegisterPage from "./pages/RegisterPage";
 // Placeholder pages (Should be replaced later in the process);
 
 const DummyHome = () => (
   <div className="p-8 font-bold">Home Feed (Protected)</div>
 );
-const DummyLogin = () => <div className="p-8 font-bold">Login Page</div>;
-const DummyRegister = () => <div className="p-8 font-bold">Register Page</div>;
 
 // Protected Route Guard
 function ProtectedRoutes({ children }: { children: ReactElement }) {
@@ -32,8 +34,8 @@ export default function App() {
     <BrowserRouter>
       <Routes>
         {/* Public Routes */}
-        <Route path="/login" element={<DummyLogin />} />
-        <Route path="/register" element={<DummyRegister />} />
+        <Route path="/login" element={<LoginPage />} />
+        <Route path="/register" element={<RegisterPage />} />
         {/* Protected Routes */}
         <Route
           path="/"

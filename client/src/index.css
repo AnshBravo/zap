@@ -1,7 +1,41 @@
 @import "tailwindcss";
 
-@layer base {
-  body {
-    @apply bg-zinc-50 text-zinc-900 dark:bg-zinc-950 dark:text-zinc-100 antialiased;
-  }
+/* Enable class-based dark mode in Tailwind v4 */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* Pure Black & White Theme Configuration */
+@theme {
+  --font-sans: "Space Grotesk", system-ui, -apple-system, sans-serif;
+
+  /* Custom Pure B&W Colors */
+  --color-pure-bg: #ffffff;
+  --color-pure-black: #000000;
+  --color-pure-gray-light: #666666;
+  --color-pure-gray-dark: #999999;
+  --color-pure-border-light: #e5e5e5;
+  --color-pure-border-dark: #333333;
+  --color-pure-hover-light: #f5f5f5;
+  --color-pure-hover-dark: #1a1a1a;
+}
+
+html {
+  color-scheme: light;
+}
+
+html.dark {
+  color-scheme: dark;
+}
+
+body {
+  font-family: var(--font-sans);
+  background-color: var(--color-pure-bg);
+  color: var(--color-pure-black);
+  transition:
+    background-color 0.2s ease,
+    color 0.2s ease;
+}
+
+.dark body {
+  background-color: var(--color-pure-black);
+  color: var(--color-pure-bg);
 }
