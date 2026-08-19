@@ -25,9 +25,9 @@ function ProtectedRoutes({ children }: { children: ReactElement }) {
     );
   }
 
-  // if (!isAuthenticated) {
-  //   return <Navigate to="/login" replace />;
-  // }
+  if (!isAuthenticated) {
+    return <Navigate to="/login" replace />;
+  }
   return children;
 }
 
