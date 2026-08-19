@@ -45,11 +45,7 @@ export function Sidebar() {
       <div className="flex flex-col gap-8">
         {/* Logo */}
         <div className="flex items-center gap-3 px-2">
-          <img
-            src={theme === "dark" ? LogoBlack : LogoWhite}
-            alt="Zap Logo"
-            className="w-8 h-8 object-contain shrink-0"
-          />
+          <span className="text-2xl">Zap</span>
         </div>
 
         {/* Navigation Items */}
