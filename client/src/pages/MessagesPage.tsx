@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   Search,
   Send,
@@ -7,16 +7,18 @@ import {
   ArrowLeft,
   MoreVertical,
   CheckCheck,
+  Loader2,
 } from "lucide-react";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
 import { useAuth } from "../context/AuthContext";
 import { useSocket } from "../context/SocketContext";
+import { messagesApi } from "../api/messages";
+import type { Message } from "../types";
 
 interface ChatUser {
   id: string;
   username: string;
-  displayName: string;
-  avatarUrl?: string;
+  avatarUrl?: string | null;
   isOnline?: boolean;
 }
 
@@ -24,7 +26,7 @@ interface MessageItem {
   id: string;
   senderId: string;
   content: string;
-  timestamp: string;
+  createdAt: string;
 }
 
 interface Conversation {
@@ -33,6 +35,7 @@ interface Conversation {
   lastMessage: string;
   updatedAt: string;
   unreadCount: number;
+  lastMessageTime?: string;
 }
 
 export default function MessagesPage() {
@@ -44,60 +47,10 @@ export default function MessagesPage() {
   const [selectedConversation, setSelectedConversation] =
     useState<Conversation | null>(null);
   const [inputText, setInputText] = useState("");
-
-  // Mock Conversations
-  const [conversations, setConversations] = useState<Conversation[]>([
-    {
-      id: "conv-1",
-      participant: {
-        id: "u-101",
-        username: "zapteam",
-        displayName: "Zap Team",
-        isOnline: true,
-      },
-      lastMessage: "Welcome to Zap! Let us know if you need anything.",
-      updatedAt: "10m",
-      unreadCount: 1,
-    },
-    {
-      id: "conv-2",
-      participant: {
-        id: "u-102",
-        username: "sarah_k",
-        displayName: "Sarah Chen",
-        isOnline: false,
-      },
-      lastMessage: "Loved the B&W UI setup! Looks super sleek.",
-      updatedAt: "2h",
-      unreadCount: 0,
-    },
-  ]);
-
-  // Mock Active Thread Messages
-  const [messages, setMessages] = useState<Record<string, MessageItem[]>>({
-    "conv-1": [
-      {
-        id: "m-1",
-        senderId: "u-101",
-        content: "Hey there! Welcome to Zap.",
-        timestamp: "10:30 AM",
-      },
-      {
-        id: "m-2",
-        senderId: "u-101",
-        content: "Welcome to Zap! Let us know if you need anything.",
-        timestamp: "10:31 AM",
-      },
-    ],
-    "conv-2": [
-      {
-        id: "m-3",
-        senderId: "u-102",
-        content: "Loved the B&W UI setup! Looks super sleek.",
-        timestamp: "8:15 AM",
-      },
-    ],
-  });
+  const [conversations, setConversations] = useState<Conversation[]>([]);
+  const [messages, setMessages] = useState<Record<string, MessageItem[]>>({});
+  const [conversationsLoading, setConversationsLoading] = useState(true);
+  const [messagesLoading, setMessagesLoading] = useState(false);
 
   // Auto-scroll to bottom of chat
   const scrollToBottom = () => {
@@ -107,6 +60,54 @@ export default function MessagesPage() {
   useEffect(() => {
     scrollToBottom();
   }, [messages, selectedConversation]);
+
+  // Initialize with empty conversations (In a real app, fetch recent conversations from backend)
+  useEffect(() => {
+    // For now, start with empty conversations list
+    // In production, you'd have an endpoint like GET /api/v1/messages/conversations
+    setConversations([]);
+    setConversationsLoading(false);
+  }, []);
+
+  // Load chat history when a conversation is selected
+  useEffect(() => {
+    if (!selectedConversation) return;
+
+    const loadChatHistory = async () => {
+      try {
+        setMessagesLoading(true);
+        const res = await messagesApi.getChatHistory(
+          selectedConversation.participant.id,
+          1,
+          50,
+        );
+
+        // Convert API messages to MessageItem format
+        const formattedMessages: MessageItem[] = res.data.messages.map(
+          (msg: Message) => ({
+            id: msg.id,
+            senderId: msg.senderId,
+            content: msg.content,
+            createdAt: new Date(msg.createdAt).toLocaleTimeString([], {
+              hour: "2-digit",
+              minute: "2-digit",
+            }),
+          }),
+        );
+
+        setMessages((prev) => ({
+          ...prev,
+          [selectedConversation.id]: formattedMessages,
+        }));
+      } catch (err) {
+        console.error("Failed to load chat history:", err);
+      } finally {
+        setMessagesLoading(false);
+      }
+    };
+
+    loadChatHistory();
+  }, [selectedConversation?.id]);
 
   // Listen for real-time WebSocket messages
   useEffect(() => {
@@ -146,13 +147,13 @@ export default function MessagesPage() {
 
   const handleSendMessage = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!inputText.trim() || !selectedConversation) return;
+    if (!inputText.trim() || !selectedConversation || !user) return;
 
     const newMessage: MessageItem = {
       id: Date.now().toString(),
-      senderId: user?.id || "current-user",
+      senderId: user.id,
       content: inputText,
-      timestamp: new Date().toLocaleTimeString([], {
+      createdAt: new Date().toLocaleTimeString([], {
         hour: "2-digit",
         minute: "2-digit",
       }),
@@ -187,12 +188,8 @@ export default function MessagesPage() {
     setInputText("");
   };
 
-  const filteredConversations = conversations.filter(
-    (c) =>
-      c.participant.displayName
-        .toLowerCase()
-        .includes(searchQuery.toLowerCase()) ||
-      c.participant.username.toLowerCase().includes(searchQuery.toLowerCase()),
+  const filteredConversations = conversations.filter((c) =>
+    c.participant.username.toLowerCase().includes(searchQuery.toLowerCase()),
   );
 
   return (
@@ -233,7 +230,11 @@ export default function MessagesPage() {
 
         {/* Conversations List */}
         <div className="flex-1 overflow-y-auto divide-y divide-pure-border-light dark:divide-pure-border-dark">
-          {filteredConversations.length > 0 ? (
+          {conversationsLoading ? (
+            <div className="p-8 flex items-center justify-center">
+              <Loader2 className="animate-spin text-black dark:text-white" />
+            </div>
+          ) : filteredConversations.length > 0 ? (
             filteredConversations.map((conv) => {
               const isSelected = selectedConversation?.id === conv.id;
               return (
@@ -257,7 +258,15 @@ export default function MessagesPage() {
                   {/* Avatar */}
                   <div className="relative shrink-0">
                     <div className="w-10 h-10 rounded-full bg-black dark:bg-white text-white dark:text-black flex items-center justify-center font-black text-sm uppercase">
-                      {conv.participant.username.charAt(0)}
+                      {conv.participant.avatarUrl ? (
+                        <img
+                          src={conv.participant.avatarUrl}
+                          alt={conv.participant.username}
+                          className="w-full h-full rounded-full object-cover"
+                        />
+                      ) : (
+                        conv.participant.username.charAt(0)
+                      )}
                     </div>
                     {conv.participant.isOnline && (
                       <span className="absolute bottom-0 right-0 w-3 h-3 rounded-full bg-emerald-500 border-2 border-white dark:border-black" />
@@ -268,7 +277,7 @@ export default function MessagesPage() {
                   <div className="flex-1 min-w-0">
                     <div className="flex justify-between items-center mb-0.5">
                       <span className="text-sm font-extrabold truncate text-black dark:text-white">
-                        {conv.participant.displayName}
+                        @{conv.participant.username}
                       </span>
                       <span className="text-xs text-pure-gray-light dark:text-pure-gray-dark shrink-0">
                         {conv.updatedAt}
@@ -314,14 +323,24 @@ export default function MessagesPage() {
                   <ArrowLeft size={18} />
                 </button>
                 <div className="w-8 h-8 rounded-full bg-black dark:bg-white text-white dark:text-black flex items-center justify-center font-bold text-xs uppercase">
-                  {selectedConversation.participant.username.charAt(0)}
+                  {selectedConversation.participant.avatarUrl ? (
+                    <img
+                      src={selectedConversation.participant.avatarUrl}
+                      alt={selectedConversation.participant.username}
+                      className="w-full h-full rounded-full object-cover"
+                    />
+                  ) : (
+                    selectedConversation.participant.username.charAt(0)
+                  )}
                 </div>
                 <div>
                   <h2 className="text-sm font-black text-black dark:text-white">
-                    {selectedConversation.participant.displayName}
+                    @{selectedConversation.participant.username}
                   </h2>
                   <p className="text-[11px] text-pure-gray-light dark:text-pure-gray-dark font-medium">
-                    @{selectedConversation.participant.username}
+                    {selectedConversation.participant.isOnline
+                      ? "Active now"
+                      : "Offline"}
                   </p>
                 </div>
               </div>
@@ -333,36 +352,46 @@ export default function MessagesPage() {
 
             {/* Message Stream */}
             <div className="flex-1 overflow-y-auto p-4 space-y-3">
-              {(messages[selectedConversation.id] || []).map((msg) => {
-                const isMe = msg.senderId === (user?.id || "current-user");
-                return (
-                  <motion.div
-                    key={msg.id}
-                    initial={{ opacity: 0, y: 5 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className={`flex flex-col ${isMe ? "items-end" : "items-start"}`}
-                  >
-                    <div
-                      className={`max-w-[75%] px-4 py-2.5 rounded-2xl text-xs sm:text-sm font-medium leading-relaxed ${
-                        isMe
-                          ? "bg-black text-white dark:bg-white dark:text-black rounded-br-none"
-                          : "bg-pure-hover-light dark:bg-pure-hover-dark text-black dark:text-white rounded-bl-none border border-pure-border-light dark:border-pure-border-dark"
-                      }`}
+              {messagesLoading ? (
+                <div className="flex items-center justify-center h-full">
+                  <Loader2 className="animate-spin text-black dark:text-white" />
+                </div>
+              ) : (messages[selectedConversation.id] || []).length > 0 ? (
+                (messages[selectedConversation.id] || []).map((msg) => {
+                  const isMe = msg.senderId === (user?.id || "");
+                  return (
+                    <motion.div
+                      key={msg.id}
+                      initial={{ opacity: 0, y: 5 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className={`flex flex-col ${isMe ? "items-end" : "items-start"}`}
                     >
-                      {msg.content}
-                    </div>
-                    <div className="flex items-center gap-1 mt-1 text-[10px] text-pure-gray-light dark:text-pure-gray-dark px-1">
-                      <span>{msg.timestamp}</span>
-                      {isMe && (
-                        <CheckCheck
-                          size={12}
-                          className="text-black dark:text-white"
-                        />
-                      )}
-                    </div>
-                  </motion.div>
-                );
-              })}
+                      <div
+                        className={`max-w-[75%] px-4 py-2.5 rounded-2xl text-xs sm:text-sm font-medium leading-relaxed ${
+                          isMe
+                            ? "bg-black text-white dark:bg-white dark:text-black rounded-br-none"
+                            : "bg-pure-hover-light dark:bg-pure-hover-dark text-black dark:text-white rounded-bl-none border border-pure-border-light dark:border-pure-border-dark"
+                        }`}
+                      >
+                        {msg.content}
+                      </div>
+                      <div className="flex items-center gap-1 mt-1 text-[10px] text-pure-gray-light dark:text-pure-gray-dark px-1">
+                        <span>{msg.createdAt}</span>
+                        {isMe && (
+                          <CheckCheck
+                            size={12}
+                            className="text-black dark:text-white"
+                          />
+                        )}
+                      </div>
+                    </motion.div>
+                  );
+                })
+              ) : (
+                <div className="flex items-center justify-center h-full text-xs text-pure-gray-light dark:text-pure-gray-dark">
+                  No messages yet. Start the conversation!
+                </div>
+              )}
               <div ref={messagesEndRef} />
             </div>
 

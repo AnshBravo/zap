@@ -1,25 +1,22 @@
-import React, { useState } from "react";
-import {
-  Heart,
-  MessageSquare,
-  Repeat2,
-  Share,
-  MoreHorizontal,
-} from "lucide-react";
+import { useState } from "react";
+import { Heart, MessageSquare, Share, MoreHorizontal } from "lucide-react";
 import { motion } from "framer-motion";
 
 export interface ZapPost {
   id: string;
   content: string;
-  author: {
-    username: string;
-    displayName: string;
-    avatarUrl?: string;
-  };
+  authorId: string;
   createdAt: string;
-  likesCount: number;
-  repliesCount: number;
-  repostsCount: number;
+  updatedAt: string;
+  author: {
+    id: string;
+    username: string;
+    avatarUrl?: string | null;
+  };
+  _count: {
+    likes: number;
+    comments: number;
+  };
   isLiked?: boolean;
   isReposted?: boolean;
 }
@@ -30,7 +27,7 @@ interface PostCardProps {
 
 export default function PostCard({ post }: PostCardProps) {
   const [isLiked, setIsLiked] = useState(post.isLiked || false);
-  const [likesCount, setLikesCount] = useState(post.likesCount);
+  const [likesCount, setLikesCount] = useState(post._count?.likes || 0);
 
   const handleLike = () => {
     setIsLiked(!isLiked);
@@ -51,16 +48,13 @@ export default function PostCard({ post }: PostCardProps) {
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2 overflow-hidden text-sm">
               <span className="font-extrabold truncate text-black dark:text-white">
-                {post.author.displayName}
-              </span>
-              <span className="text-pure-gray-light dark:text-pure-gray-dark truncate font-medium">
                 @{post.author.username}
               </span>
               <span className="text-pure-gray-light dark:text-pure-gray-dark font-medium">
                 ·
               </span>
               <span className="text-pure-gray-light dark:text-pure-gray-dark font-medium text-xs">
-                {post.createdAt}
+                {new Date(post.createdAt).toLocaleDateString()}
               </span>
             </div>
             <button className="text-pure-gray-light dark:text-pure-gray-dark hover:text-black dark:hover:text-white transition-colors">
@@ -69,7 +63,7 @@ export default function PostCard({ post }: PostCardProps) {
           </div>
 
           {/* Content */}
-          <p className="mt-2 text-sm leading-relaxed text-black dark:text-white break-words">
+          <p className="mt-2 text-sm leading-relaxed text-black dark:text-white wrap-break-word">
             {post.content}
           </p>
 
@@ -78,13 +72,7 @@ export default function PostCard({ post }: PostCardProps) {
             {/* Reply */}
             <button className="flex items-center gap-1.5 text-xs font-medium hover:text-black dark:hover:text-white transition-colors">
               <MessageSquare size={16} />
-              <span>{post.repliesCount}</span>
-            </button>
-
-            {/* Repost */}
-            <button className="flex items-center gap-1.5 text-xs font-medium hover:text-black dark:hover:text-white transition-colors">
-              <Repeat2 size={16} />
-              <span>{post.repostsCount}</span>
+              <span>{post._count?.comments || 0}</span>
             </button>
 
             {/* Like */}
