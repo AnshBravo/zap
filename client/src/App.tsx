@@ -3,38 +3,15 @@ import { useAuth } from "./context/AuthContext";
 import type { ReactElement } from "react";
 import LoginPage from "./pages/LoginPage";
 import RegisterPage from "./pages/RegisterPage";
+import ProfilePage from "./pages/ProfilePage";
 import { AppLayout } from "./components/layout/AppLayout";
-
+import FeedPage from "./pages/FeedPage";
+import NotificationsPage from "./pages/NotificationsPage";
+import MessagesPage from "./pages/MessagesPage";
+import ExplorePage from "./pages/ExplorePage";
 // Placeholder pages (Should be replaced later in the process);
 
-const DummyHome = () => (
-  <div className="p-8 font-bold">Home Feed (Protected)</div>
-);
-
 // Temporary view components for layout verification
-const FeedPage = () => (
-  <div className="p-6">
-    <h2 className="text-xl font-extrabold tracking-tight mb-4">Home Feed</h2>
-    <div className="p-4 border border-pure-border-light dark:border-pure-border-dark rounded-xl">
-      <p className="text-sm font-medium">
-        Welcome to Zap! The 3-column layout is fully responsive and active.
-      </p>
-    </div>
-  </div>
-);
-
-const ExplorePage = () => (
-  <div className="p-6 text-xl font-extrabold">Explore View</div>
-);
-const NotificationsPage = () => (
-  <div className="p-6 text-xl font-extrabold font-sans">Notifications View</div>
-);
-const MessagesPage = () => (
-  <div className="p-6 text-xl font-extrabold">Messages View</div>
-);
-const ProfilePage = () => (
-  <div className="p-6 text-xl font-extrabold">Profile View</div>
-);
 
 // Protected Route Guard
 function ProtectedRoutes({ children }: { children: ReactElement }) {
