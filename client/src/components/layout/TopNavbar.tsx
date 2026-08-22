@@ -1,4 +1,3 @@
-import React from "react";
 import LogoBlack from "../../assets/Zap logo black.png";
 import LogoWhite from "../../assets/Zap logo white.png";
 import { useTheme } from "../../context/ThemeContext";

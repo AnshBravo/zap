@@ -1,4 +1,3 @@
-import React from "react";
 import { Search, TrendingUp, UserPlus } from "lucide-react";
 
 export function RightWidgetSidebar() {

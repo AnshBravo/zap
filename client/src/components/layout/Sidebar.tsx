@@ -1,4 +1,3 @@
-import React from "react";
 import { NavLink, useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import { useTheme } from "../../context/ThemeContext";
@@ -14,8 +13,6 @@ import {
   PlusSquare,
 } from "lucide-react";
 import { motion } from "framer-motion";
-import LogoBlack from "../../assets/Zap logo black.png";
-import LogoWhite from "../../assets/Zap logo white.png";
 
 export function Sidebar() {
   const { user, logout } = useAuth();
