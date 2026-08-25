@@ -9,7 +9,7 @@ const isLocalhost =
 
 const API_BASE_URL = isLocalhost
   ? "http://localhost:3000/api/v1"
-  : "https://YOUR_RENDER_BACKEND_://onrender.com"; // ⚠️ PASTE YOUR ACTUAL LIVE RENDER SERVER URL HERE
+  : "https://zap-og4s.onrender.com";
 
 export const api = axios.create({
   baseURL: API_BASE_URL,
