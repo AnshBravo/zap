@@ -2,12 +2,13 @@ import { Server as HTTPServer } from "http";
 import { Server, Socket } from "socket.io";
 import { prisma } from "./db/prisma.js";
 import jwt from "jsonwebtoken";
-import { userInfo } from "os";
 
 let io: Server;
 
+// Explicitly extending Socket fixes all the handshake, emit, and join errors
 interface AuthenticatedSocket extends Socket {
   userId?: string;
+  [key: string]: any; // Catch-all for any other custom properties
 }
 
 export const initSocket = (server: HTTPServer): Server => {
@@ -18,10 +19,12 @@ export const initSocket = (server: HTTPServer): Server => {
     },
   });
 
-  io.use((socket: AuthenticatedSocket, next) => {
+  // Adding the explicit type to 'next' clears the implicit 'any' error
+  io.use((socket: Socket, next: (err?: Error) => void) => {
+    const authSocket = socket as AuthenticatedSocket;
     const token =
-      socket.handshake.auth?.token ||
-      socket.handshake.headers?.authorization?.split(" ")[1];
+      authSocket.handshake.auth?.token ||
+      authSocket.handshake.headers?.authorization?.split(" ")[1];
 
     if (!token) {
       return next(new Error("Authentication error: Token missing"));
@@ -31,24 +34,30 @@ export const initSocket = (server: HTTPServer): Server => {
         token,
         process.env.JWT_SECRET || "fallback_secret",
       ) as { userId: string };
+
+      // Save the userId onto the socket object for later use
+      authSocket.userId = decoded.userId;
+      next(); // Call next to let the connection continue
     } catch (err) {
       next(new Error("Authentication error: Invalid token"));
     }
   });
 
-  io.on("connection", (socket: AuthenticatedSocket) => {
-    console.log(`Socket connected: ${socket.id} (User: ${socket.userId})`);
+  io.on("connection", (socket: Socket) => {
+    const authSocket = socket as AuthenticatedSocket;
+    console.log(
+      `Socket connected: ${authSocket.id} (User: ${authSocket.userId})`,
+    );
 
-    // Join a private room dedicated to this user's ID for targeted notifications
-    if (socket.userId) {
-      socket.join(`user:${socket.userId}`);
+    if (authSocket.userId) {
+      authSocket.join(`user:${authSocket.userId}`);
     }
 
-    socket.on(
+    authSocket.on(
       "send_message",
       async (data: { receiverId: string; content: string }) => {
         try {
-          const senderId = socket.userId;
+          const senderId = authSocket.userId;
           const { receiverId, content } = data;
 
           if (!senderId || !receiverId || !content?.trim()) return;
@@ -67,17 +76,16 @@ export const initSocket = (server: HTTPServer): Server => {
           });
 
           io.to(`user:${receiverId}`).emit("receive_message", message);
-
-          socket.emit("message_sent", message);
+          authSocket.emit("message_sent", message);
         } catch (err) {
           console.error("Error sending socket message:", err);
-          socket.emit("error", { message: "Failed to deliver message." });
+          authSocket.emit("error", { message: "Failed to deliver message." });
         }
       },
     );
 
-    socket.on("disconnect", () => {
-      console.log(`Socket disconnect: ${socket.id}`);
+    authSocket.on("disconnect", () => {
+      console.log(`Socket disconnect: ${authSocket.id}`);
     });
   });
 
