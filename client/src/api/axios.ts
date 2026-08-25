@@ -1,7 +1,15 @@
 import axios from "axios";
 
-const API_BASE_URL =
-  import.meta.env.VITE_API_URL || "http://localhost:3000/api/v1";
+// 🌟 DYNAMIC PRODUCTION DETECTION
+// If the browser address says "localhost", target your local backend.
+// Otherwise, target your live Render server automatically!
+const isLocalhost =
+  window.location.hostname === "localhost" ||
+  window.location.hostname === "127.0.0.1";
+
+const API_BASE_URL = isLocalhost
+  ? "http://localhost:3000/api/v1"
+  : "https://YOUR_RENDER_BACKEND_://onrender.com"; // ⚠️ PASTE YOUR ACTUAL LIVE RENDER SERVER URL HERE
 
 export const api = axios.create({
   baseURL: API_BASE_URL,
@@ -11,7 +19,6 @@ export const api = axios.create({
 });
 
 // Request Interceptor: Attach JWT Token
-
 api.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem("zap_token");
@@ -23,8 +30,7 @@ api.interceptors.request.use(
   (error) => Promise.reject(error),
 );
 
-// Response Interceptor: Handle global errors (e.g expired tokens)
-
+// Response Interceptor: Handle global errors
 api.interceptors.response.use(
   (response) => response,
   (error) => {
