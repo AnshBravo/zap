@@ -54,7 +54,7 @@ export const getChatHistory = asyncHandler(
     res.status(200).json({
       status: "success",
       data: {
-        messages: totalMessages.reverse(),
+        messages: totalMessages,
         pagination: {
           page,
           limit,

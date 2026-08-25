@@ -131,7 +131,7 @@ export const getFollowers = asyncHandler(
     res.status(200).json({
       status: "success",
       data: {
-        followers: followers.map((f) => f.follower),
+        followers: followers.map((f: any) => f.follower),
         pagination: {
           page,
           limit,
@@ -186,7 +186,7 @@ export const getFollowing = asyncHandler(
     res.status(200).json({
       status: "success",
       data: {
-        followers: following.map((f) => f.follower),
+        followers: following.map((f: any) => f.follower),
         pagination: {
           page,
           limit,
