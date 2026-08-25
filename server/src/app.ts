@@ -20,7 +20,7 @@ app.use(
   }),
 );
 
-app.options("*", cors() as any);
+app.options("/*any", cors());
 
 // Health Check Route
 app.get("/health", (_req: Request, res: Response) => {
