@@ -69,7 +69,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
       email: email,
       password: password,
     });
-    const { user: userData, token: jwtToken } = response.data.data;
+    const { token: jwtToken } = response.data;
+    const { user: userData } = response.data.data;
 
     setUser(userData);
     setToken(jwtToken);
