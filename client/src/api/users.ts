@@ -44,6 +44,11 @@ export interface UserListResponse {
 }
 
 export const usersApi = {
+  getCurrentUser: async (): Promise<UserProfileResponse> => {
+    const response = await api.get("/auth/me");
+    return response.data;
+  },
+
   // GET /api/v1/users/:username
   getProfile: async (username: string): Promise<UserProfileResponse> => {
     const response = await api.get(`/users/${username}`);

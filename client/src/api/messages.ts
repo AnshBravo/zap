@@ -4,7 +4,7 @@ import { type Message } from "../types";
 export interface ChatHistoryResponse {
   status: string;
   data: {
-    messages: Message[];
+    messages: Message[] | number;
     pagination: {
       page: number;
       limit: number;
