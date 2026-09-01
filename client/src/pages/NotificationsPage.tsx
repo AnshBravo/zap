@@ -1,33 +1,31 @@
-import React, { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { Heart, MessageCircle, UserPlus, Zap, BellOff } from "lucide-react";
 import { motion } from "framer-motion";
+import { useSocket } from "../context/SocketContext";
+import type { NotificationItem } from "../types";
 
-export interface NotificationItem {
-  id: string;
-  type: "like" | "reply" | "follow";
-  user: {
-    username: string;
-    avatarUrl?: string;
-  };
-  content?: string;
-  createdAt: string;
-  read: boolean;
-}
-
-interface NotificationsPageProps {
-  socket?: any; // Socket.io instance passed via context/props
-}
-
-export default function NotificationsPage({ socket }: NotificationsPageProps) {
+export default function NotificationsPage() {
+  const { socket } = useSocket();
   const [activeTab, setActiveTab] = useState<"all" | "mentions">("all");
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
 
   useEffect(() => {
     if (!socket) return;
 
-    // Listen for incoming live notifications from backend Socket events
-    const handleNotification = (newNotification: NotificationItem) => {
-      setNotifications((prev) => [newNotification, ...prev]);
+    const handleNotification = (payload: any) => {
+      const normalized: NotificationItem = {
+        id: `${payload.type}-${payload.postId || payload.followerId || Date.now()}`,
+        type: payload.type,
+        message: payload.message || "New activity on Zap.",
+        postId: payload.postId,
+        commentId: payload.commentId,
+        followerId: payload.followerId,
+        triggerBy: payload.triggeredBy,
+        createdAt: new Date().toISOString(),
+        read: false,
+      };
+
+      setNotifications((prev) => [normalized, ...prev]);
     };
 
     socket.on("notification", handleNotification);
@@ -43,20 +41,20 @@ export default function NotificationsPage({ socket }: NotificationsPageProps) {
 
   const filteredNotifications = notifications.filter((item) => {
     if (activeTab === "mentions") {
-      return item.type === "reply";
+      return item.type === "COMMENT";
     }
     return true;
   });
 
   const getNotificationIcon = (type: NotificationItem["type"]) => {
     switch (type) {
-      case "like":
+      case "LIKE":
         return <Heart size={16} className="text-red-500 fill-red-500" />;
-      case "reply":
+      case "COMMENT":
         return (
           <MessageCircle size={16} className="text-blue-500 fill-blue-500" />
         );
-      case "follow":
+      case "FOLLOW":
         return <UserPlus size={16} className="text-emerald-500" />;
       default:
         return <Zap size={16} className="text-amber-500" />;
@@ -65,7 +63,6 @@ export default function NotificationsPage({ socket }: NotificationsPageProps) {
 
   return (
     <div className="w-full min-h-screen">
-      {/* Header */}
       <div className="sticky top-0 z-10 backdrop-blur-md bg-white/80 dark:bg-black/80 border-b border-pure-border-light dark:border-pure-border-dark px-6 py-3 flex items-center justify-between">
         <h1 className="text-lg font-black tracking-tight">Notifications</h1>
         {notifications.some((n) => !n.read) && (
@@ -78,7 +75,6 @@ export default function NotificationsPage({ socket }: NotificationsPageProps) {
         )}
       </div>
 
-      {/* Tabs */}
       <div className="flex border-b border-pure-border-light dark:border-pure-border-dark">
         {(["all", "mentions"] as const).map((tab) => (
           <button
@@ -101,7 +97,6 @@ export default function NotificationsPage({ socket }: NotificationsPageProps) {
         ))}
       </div>
 
-      {/* List */}
       {filteredNotifications.length === 0 ? (
         <div className="p-12 text-center text-pure-gray-light dark:text-pure-gray-dark space-y-2">
           <BellOff size={28} className="mx-auto opacity-50" />
@@ -123,37 +118,37 @@ export default function NotificationsPage({ socket }: NotificationsPageProps) {
               <div className="flex-1 space-y-1">
                 <div className="flex items-center gap-2">
                   <div className="w-7 h-7 rounded-full bg-black dark:bg-white text-white dark:text-black flex items-center justify-center font-bold text-xs uppercase">
-                    {item.user.avatarUrl ? (
+                    {item.triggerBy?.avatarUrl ? (
                       <img
-                        src={item.user.avatarUrl}
-                        alt={item.user.username}
+                        src={item.triggerBy.avatarUrl}
+                        alt={item.triggerBy.username}
                         className="w-full h-full rounded-full object-cover"
                       />
                     ) : (
-                      item.user.username.charAt(0)
+                      item.triggerBy?.username?.charAt(0) || "Z"
                     )}
                   </div>
                   <span className="text-xs sm:text-sm font-bold">
-                    @{item.user.username}
+                    @{item.triggerBy?.username || "zap_user"}
                   </span>
-                  {item.type === "follow" && (
+                  {item.type === "FOLLOW" && (
                     <span className="text-xs text-pure-gray-light dark:text-pure-gray-dark">
                       followed you
                     </span>
                   )}
                 </div>
 
-                {item.content && (
-                  <p className="text-xs sm:text-sm leading-relaxed text-pure-gray-light dark:text-pure-gray-dark">
-                    {item.content}
-                  </p>
-                )}
+                <p className="text-xs sm:text-sm leading-relaxed text-pure-gray-light dark:text-pure-gray-dark">
+                  {item.message}
+                </p>
 
                 <p className="text-[10px] text-pure-gray-light dark:text-pure-gray-dark pt-1">
-                  {new Date(item.createdAt).toLocaleTimeString([], {
-                    hour: "2-digit",
-                    minute: "2-digit",
-                  })}
+                  {item.createdAt
+                    ? new Date(item.createdAt).toLocaleTimeString([], {
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })
+                    : "Just now"}
                 </p>
               </div>
             </div>
