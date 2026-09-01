@@ -1,11 +1,13 @@
 import { useState, useEffect } from "react";
 import { Loader2 } from "lucide-react";
+import { useLocation } from "react-router-dom";
 import PostComposer from "../components/feed/PostComposer";
 import PostCard from "../components/feed/PostCard";
 import { postsApi } from "../api/posts";
 import { type Post } from "../types";
 
 export default function FeedPage() {
+  const location = useLocation();
   const [posts, setPosts] = useState<Post[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
@@ -13,6 +15,15 @@ export default function FeedPage() {
   useEffect(() => {
     fetchFeed();
   }, []);
+
+  const focusComposer = Boolean(
+    (location.state as { focusComposer?: boolean } | null)?.focusComposer,
+  );
+
+  useEffect(() => {
+    if (!focusComposer) return;
+    window.history.replaceState({}, "");
+  }, [focusComposer]);
 
   const fetchFeed = async () => {
     try {
@@ -41,7 +52,10 @@ export default function FeedPage() {
       </div>
 
       {/* Post Creation Area */}
-      <PostComposer onPostCreated={handlePostCreated} />
+      <PostComposer
+        onPostCreated={handlePostCreated}
+        autoFocus={focusComposer}
+      />
 
       {/* Feed List */}
       {loading ? (
