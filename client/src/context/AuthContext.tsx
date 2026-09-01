@@ -50,7 +50,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
       email: email,
       password: password,
     });
-    const { user: userData, token: jwtToken } = response.data.data; // we're using .data.data as response return an object called data in which our returned payload data is.
+    const { token: jwtToken } = response.data;
+    const { user: userData } = response.data.data; // we're using .data.data as response return an object called data in which our returned payload data is.
 
     setUser(userData);
     setToken(jwtToken);
@@ -69,7 +70,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
       email: email,
       password: password,
     });
-    const { user: userData, token: jwtToken } = response.data.data;
+    const { token: jwtToken } = response.data;
+    const { user: userData } = response.data.data;
 
     setUser(userData);
     setToken(jwtToken);
