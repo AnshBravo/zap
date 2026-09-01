@@ -1,4 +1,3 @@
-import React from "react";
 import { NavLink, useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import { useTheme } from "../../context/ThemeContext";
@@ -14,8 +13,6 @@ import {
   PlusSquare,
 } from "lucide-react";
 import { motion } from "framer-motion";
-import LogoBlack from "../../assets/Zap logo black.png";
-import LogoWhite from "../../assets/Zap logo white.png";
 
 export function Sidebar() {
   const { user, logout } = useAuth();
@@ -75,6 +72,7 @@ export function Sidebar() {
         <motion.button
           whileHover={{ scale: 1.02 }}
           whileTap={{ scale: 0.98 }}
+          onClick={() => navigate("/", { state: { focusComposer: true } })}
           className="w-full py-3 px-4 flex items-center justify-center gap-2 rounded-xl bg-black text-white dark:bg-white dark:text-black font-semibold text-sm hover:opacity-90 transition-opacity"
         >
           <PlusSquare size={18} />

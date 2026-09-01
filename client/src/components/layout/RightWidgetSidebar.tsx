@@ -1,17 +1,60 @@
-import React from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Search, TrendingUp, UserPlus } from "lucide-react";
+import { postsApi } from "../../api/posts";
+import type { Post } from "../../types";
 
 export function RightWidgetSidebar() {
-  const dummyTrends = [
-    { tag: "#React19", posts: "14.2k Zaps" },
-    { tag: "#TypeScript", posts: "8.9k Zaps" },
-    { tag: "#WebSockets", posts: "5.1k Zaps" },
-    { tag: "#TailwindCSS", posts: "12.4k Zaps" },
-  ];
+  const [posts, setPosts] = useState<Post[]>([]);
+
+  useEffect(() => {
+    const loadFeed = async () => {
+      try {
+        const response = await postsApi.getFeed(1, 20);
+        setPosts(response.data.posts || []);
+      } catch (error) {
+        console.error("Failed to load sidebar feed:", error);
+      }
+    };
+
+    loadFeed();
+  }, []);
+
+  const trends = useMemo(() => {
+    const tagMap = new Map<string, number>();
+
+    posts.forEach((post) => {
+      const matches = post.content.match(/#\w+/g) || [];
+      matches.forEach((tag) => {
+        tagMap.set(tag, (tagMap.get(tag) || 0) + 1);
+      });
+    });
+
+    return [...tagMap.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 4)
+      .map(([tag, count]) => ({
+        tag,
+        posts: `${count} ${count === 1 ? "Zap" : "Zaps"}`,
+      }));
+  }, [posts]);
+
+  const creators = useMemo(() => {
+    const uniqueAuthors = new Map<string, string>();
+
+    posts.forEach((post) => {
+      if (!uniqueAuthors.has(post.author.username)) {
+        uniqueAuthors.set(post.author.username, post.author.id);
+      }
+    });
+
+    return [...uniqueAuthors.entries()].slice(0, 3).map(([username]) => ({
+      username,
+      id: username,
+    }));
+  }, [posts]);
 
   return (
     <aside className="sticky top-0 h-screen w-80 xl:w-96 hidden lg:flex flex-col gap-6 p-6 border-l border-pure-border-light dark:border-pure-border-dark bg-white dark:bg-black shrink-0 overflow-y-auto transition-colors">
-      {/* Search Input */}
       <div className="relative">
         <Search
           size={18}
@@ -24,56 +67,66 @@ export function RightWidgetSidebar() {
         />
       </div>
 
-      {/* Trending Box */}
       <div className="p-4 rounded-2xl border border-pure-border-light dark:border-pure-border-dark space-y-3">
         <div className="flex items-center gap-2 font-bold text-sm tracking-tight">
           <TrendingUp size={16} />
           <span>Trending Today</span>
         </div>
         <div className="space-y-3 pt-1">
-          {dummyTrends.map((trend) => (
-            <div
-              key={trend.tag}
-              className="flex justify-between items-center group cursor-pointer"
-            >
-              <div>
-                <p className="text-sm font-semibold group-hover:underline">
-                  {trend.tag}
-                </p>
-                <p className="text-xs text-pure-gray-light dark:text-pure-gray-dark">
-                  {trend.posts}
-                </p>
+          {trends.length > 0 ? (
+            trends.map((trend) => (
+              <div
+                key={trend.tag}
+                className="flex justify-between items-center group cursor-pointer"
+              >
+                <div>
+                  <p className="text-sm font-semibold group-hover:underline">
+                    {trend.tag}
+                  </p>
+                  <p className="text-xs text-pure-gray-light dark:text-pure-gray-dark">
+                    {trend.posts}
+                  </p>
+                </div>
               </div>
-            </div>
-          ))}
+            ))
+          ) : (
+            <p className="text-xs text-pure-gray-light dark:text-pure-gray-dark">
+              No active trends yet.
+            </p>
+          )}
         </div>
       </div>
 
-      {/* Who to Follow Box */}
       <div className="p-4 rounded-2xl border border-pure-border-light dark:border-pure-border-dark space-y-3">
         <div className="flex items-center gap-2 font-bold text-sm tracking-tight">
           <UserPlus size={16} />
           <span>Who to Follow</span>
         </div>
         <div className="space-y-3 pt-1">
-          {["sarah_dev", "alex_code", "design_guru"].map((handle) => (
-            <div
-              key={handle}
-              className="flex items-center justify-between gap-2"
-            >
-              <div className="flex items-center gap-2.5 min-w-0">
-                <div className="w-7 h-7 rounded-full bg-pure-hover-light dark:bg-pure-hover-dark border border-pure-border-light dark:border-pure-border-dark flex items-center justify-center text-xs font-bold uppercase shrink-0">
-                  {handle.charAt(0)}
+          {creators.length > 0 ? (
+            creators.map((creator) => (
+              <div
+                key={creator.id}
+                className="flex items-center justify-between gap-2"
+              >
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="w-7 h-7 rounded-full bg-pure-hover-light dark:bg-pure-hover-dark border border-pure-border-light dark:border-pure-border-dark flex items-center justify-center text-xs font-bold uppercase shrink-0">
+                    {creator.username.charAt(0)}
+                  </div>
+                  <span className="text-xs font-semibold truncate">
+                    @{creator.username}
+                  </span>
                 </div>
-                <span className="text-xs font-semibold truncate">
-                  @{handle}
-                </span>
+                <button className="px-3 py-1 text-xs font-semibold rounded-lg bg-black text-white dark:bg-white dark:text-black hover:opacity-80 transition-opacity">
+                  Follow
+                </button>
               </div>
-              <button className="px-3 py-1 text-xs font-semibold rounded-lg bg-black text-white dark:bg-white dark:text-black hover:opacity-80 transition-opacity">
-                Follow
-              </button>
-            </div>
-          ))}
+            ))
+          ) : (
+            <p className="text-xs text-pure-gray-light dark:text-pure-gray-dark">
+              Follow suggestions will appear here.
+            </p>
+          )}
         </div>
       </div>
     </aside>
