@@ -5,8 +5,6 @@
 
 generator client { // generator client tells prisma to generate a custom, type-safe TypeScript query client
  provider            = "prisma-client-js"
-  output              = "../src/generated/prisma"
-  importFileExtension = "ts"
 }
 
 datasource db { // datasource db specifies that we are using postgresql. 

@@ -15,9 +15,12 @@ app.use(
   cors({
     origin: process.env.CLIENT_URL || "http://localhost:5173",
     methods: ["GET", "POST", "DELETE"],
-    allowedHeaders: ["Content-Type"],
+    allowedHeaders: ["Content-Type", "Authorization"],
+    credentials: true,
   }),
 );
+
+app.options("/*any", cors());
 
 // Health Check Route
 app.get("/health", (_req: Request, res: Response) => {
