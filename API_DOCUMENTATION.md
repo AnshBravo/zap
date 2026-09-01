@@ -1,869 +1,713 @@
-# ⚡ Zap Social Network - API Documentation (v1)
+# Zap API Documentation
 
-**Base URL:** `http://localhost:3000/api/v1`  
-**WebSocket Server:** `http://localhost:3000`  
-**Auth Strategy:** Bearer JWT Token in `Authorization` Header (`Authorization: Bearer <token>`)
+This document describes the current backend contract for the Zap social application. It is based on the live Express server, Prisma schema, controllers, and Socket.IO implementation in this repository.
+
+## 1. Overview
+
+Zap is a social networking backend built with:
+
+- Node.js
+- Express.js
+- TypeScript
+- PostgreSQL via Prisma ORM
+- JWT-based authentication
+- Socket.IO for real-time notifications and messaging
+- CORS-enabled client access
+
+### Base URLs
+
+- REST API: http://localhost:3000/api/v1
+- Socket.IO server: http://localhost:3000
+- Health endpoint: http://localhost:3000/health
+
+### Authentication model
+
+The API uses JWT tokens issued after successful registration or login.
+
+Headers:
+
+```http
+Authorization: Bearer <jwt_token>
+```
+
+The token is verified in the auth middleware and attached to `req.user` for protected routes.
 
 ---
 
-## 📋 Server Architecture Information
+## 2. Technology Stack
 
-### Technology Stack
+### Backend stack
 
-- **Runtime:** Node.js + Express.js (TypeScript)
-- **Database:** PostgreSQL with Prisma ORM
-- **Authentication:** JWT (JSON Web Tokens) with bcrypt password hashing
-- **Real-time:** Socket.io for WebSocket communication
-- **Database Migrations:** Prisma migrations with version control
+- Runtime: Node.js
+- Web framework: Express.js
+- Language: TypeScript
+- Database: PostgreSQL
+- ORM: Prisma
+- Security: bcryptjs + JWT
+- Real-time layer: Socket.IO
+- Validation: explicit controller-level checks
+- Error handling: centralized middleware with custom error class
 
-### Core Entities & Database Schema
+### API conventions
 
-```
-User
-├── id (UUID, Primary Key)
-├── username (String, Unique)
-├── email (String, Unique)
-├── passwordHash (String)
-├── bio (String, optional)
-├── avatarUrl (String, optional)
-├── createdAt (DateTime)
-├── updatedAt (DateTime)
-└── Relationships:
-    ├── posts (One-to-Many)
-    ├── comments (One-to-Many)
-    ├── likes (One-to-Many)
-    ├── followers (Many-to-Many via Follows)
-    ├── following (Many-to-Many via Follows)
-    ├── sentMessages (One-to-Many)
-    └── receivedMessages (One-to-Many)
+- API version prefix: `/api/v1`
+- JSON payloads for request and response bodies
+- Success responses use a standard `status` field
+- Errors are surfaced through centralized middleware and custom `ApiError`
+- Pagination is supported on list endpoints using `page` and `limit`
 
-Post
-├── id (UUID, Primary Key)
-├── content (String, max 200 chars)
-├── authorId (UUID, Foreign Key)
-├── createdAt (DateTime)
-├── updatedAt (DateTime)
-└── Relationships:
-    ├── author (Many-to-One)
-    ├── likes (One-to-Many)
-    └── comments (One-to-Many)
+---
 
-Comment
-├── id (UUID, Primary Key)
-├── content (String)
-├── postId (UUID, Foreign Key)
-├── userId (UUID, Foreign Key)
-├── createdAt (DateTime)
-└── Relationships:
-    ├── post (Many-to-One)
-    └── user (Many-to-One)
+## 3. Application Architecture
 
-Like
-├── userId (UUID, Foreign Key, Primary Key Part 1)
-├── postId (UUID, Foreign Key, Primary Key Part 2)
-├── Composite Key: (userId, postId)
-└── Relationships:
-    ├── user (Many-to-One)
-    └── post (Many-to-One)
+### Core modules
 
-Follows
-├── followerId (UUID, Foreign Key, Primary Key Part 1)
-├── followingId (UUID, Foreign Key, Primary Key Part 2)
-├── createdAt (DateTime)
-├── Composite Key: (followerId, followingId)
-└── Relationships:
-    ├── follower (Many-to-One → User)
-    └── following (Many-to-One → User)
+- Auth routes: authentication and session lookup
+- User routes: public profiles and follow actions
+- Post routes: feed, post details, create/delete, likes, and comments
+- Message routes: private chat history retrieval
+- Socket layer: authenticated real-time delivery
 
-Message
-├── id (UUID, Primary Key)
-├── content (String)
-├── senderId (UUID, Foreign Key)
-├── receiverId (UUID, Foreign Key)
-├── createdAt (DateTime)
-└── Relationships:
-    ├── sender (Many-to-One)
-    └── receiver (Many-to-One)
+### Main data models
+
+- User
+- Post
+- Like
+- Comment
+- Follows
+- Message
+
+### Request lifecycle
+
+1. Client sends HTTP request.
+2. Express routes match the URL and HTTP method.
+3. Middleware runs, including JWT checks for protected endpoints.
+4. Controller performs Prisma database operations.
+5. Response is returned in a standard JSON envelope.
+6. Global error middleware handles exceptions and returns structured errors.
+
+---
+
+## 4. Standard Response Format
+
+### Success response
+
+```json
+{
+  "status": "success",
+  "data": {
+    "user": {
+      "id": "cmx123",
+      "username": "jane",
+      "email": "jane@example.com"
+    }
+  }
+}
 ```
 
-### Architecture Layers
+### Message response
 
-```
-Routes Layer (Express Router)
-  ├── auth.routes.ts     → Authentication endpoints
-  ├── post.routes.ts     → Post CRUD + interactions
-  ├── user.routes.ts     → User profile + follow/unfollow
-  ├── message.routes.ts  → Messaging endpoints
-  └── comment.routes.ts  → Comment operations
-         ↓
-Controllers Layer (Business Logic)
-  ├── auth.controller.ts         → Login, Register, Get Me
-  ├── post.controller.ts         → Create, Get, Delete posts + Feed
-  ├── user.controller.ts         → Get User, Update Profile
-  ├── interaction.controller.ts  → Like, Comment, Delete Comment
-  ├── follow.controller.ts       → Follow, Unfollow, Get Followers/Following
-  └── message.controller.ts      → Get Chat History
-         ↓
-Middleware Layer
-  ├── auth.middleware.ts   → JWT verification & user attachment
-  └── error.middleware.ts  → Global error handling & response formatting
-         ↓
-Database Layer (Prisma)
-  └── prisma.ts → Database connection & ORM client
-         ↓
-Utilities
-  ├── ApiError.ts      → Custom error class (status, message)
-  ├── asyncHandler.ts  → Wrapper for async/await error handling
-  ├── jwt.ts           → JWT signing & verification
-  └── password.ts      → Password hashing & comparison
+```json
+{
+  "status": "success",
+  "message": "Post deleted successfully"
+}
 ```
 
-### Error Handling Strategy
-
-All API errors follow a consistent format:
+### Error response
 
 ```json
 {
   "status": "error",
-  "message": "Error description",
-  "statusCode": 400,
-  "stack": "Error stack trace (development only)"
+  "message": "Invalid email or password",
+  "statusCode": 401
 }
 ```
 
-**Common HTTP Status Codes:**
+### Common HTTP status codes
 
-- `200` - Success (GET, successful operations)
-- `201` - Created (POST resource creation)
-- `400` - Bad Request (validation errors)
-- `401` - Unauthorized (missing/invalid token)
-- `404` - Not Found (resource not found)
-- `409` - Conflict (duplicate email/username)
-- `500` - Server Error
+- `200 OK` — Request successful
+- `201 Created` — Resource created successfully
+- `400 Bad Request` — Invalid request payload or validation failure
+- `401 Unauthorized` — Missing or invalid JWT token
+- `403 Forbidden` — User is authenticated but not allowed to perform the action
+- `404 Not Found` — Requested resource does not exist
+- `409 Conflict` — Duplicate username or email
+- `500 Internal Server Error` — Unhandled server error
 
-### Socket.io Real-time Events
+---
 
-**Namespaces & Rooms:**
+## 5. Authentication Endpoints
 
-```
-Rooms:
-  - user:{userId}  → Individual user notifications
-  - post:{postId}  → Post-specific events (future)
-```
+### 5.1 Register a new user
 
-**Emitted Events:**
+- Method: `POST`
+- Route: `/api/v1/auth/register`
+- Access: Public
 
-```
-notification
-  ├── type: "LIKE" → User liked a post
-  ├── type: "COMMENT" → User commented on post
-  └── type: "FOLLOW" → User started following
+Request body:
 
-message
-  └── New message sent in real-time (to be integrated)
-```
-
-### Authentication Flow
-
-```
-1. User submits credentials (email, password) to POST /auth/register or /auth/login
-2. Server validates input & checks database
-3. For valid credentials:
-   - Generate JWT token: signToken({ userId })
-   - Return user data + token
-4. Client stores token in localStorage
-5. All subsequent requests include: Authorization: Bearer <token>
-6. Middleware (protect) verifies token:
-   - Decodes JWT
-   - Attaches user to req.user
-   - Proceeds if valid
-7. On 401: Client clears token & redirects to login
-
-JWT Structure:
-- Header: { alg: "HS256", typ: "JWT" }
-- Payload: { userId, iat, exp }
-- Secret: JWT_SECRET from .env
+```json
+{
+  "username": "jane",
+  "email": "jane@example.com",
+  "password": "Password123!"
+}
 ```
 
-### Middleware Stack
+Example response:
 
+```json
+{
+  "status": "success",
+  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "data": {
+    "user": {
+      "id": "cmx123",
+      "username": "jane",
+      "email": "jane@example.com",
+      "bio": null,
+      "avatarUrl": null,
+      "createdAt": "2026-08-19T10:30:00.000Z"
+    }
+  }
+}
 ```
-Request Flow:
-1. Global Error Middleware (top)
-2. Route-specific Middleware
-   ├── protect (JWT verification) → Only for authenticated routes
-   └── Optional: validation middleware (future)
-3. Controller (business logic)
-4. Response sent
-5. Error Middleware (catches any errors)
+
+### 5.2 Log in
+
+- Method: `POST`
+- Route: `/api/v1/auth/login`
+- Access: Public
+
+Request body:
+
+```json
+{
+  "email": "jane@example.com",
+  "password": "Password123!"
+}
+```
+
+Example response:
+
+```json
+{
+  "status": "success",
+  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "data": {
+    "user": {
+      "id": "cmx123",
+      "username": "jane",
+      "email": "jane@example.com",
+      "bio": "Software developer",
+      "avatarUrl": "https://example.com/avatar.jpg",
+      "createdAt": "2026-08-19T10:30:00.000Z",
+      "updatedAt": "2026-08-19T10:45:00.000Z"
+    }
+  }
+}
+```
+
+### 5.3 Get current authenticated user
+
+- Method: `GET`
+- Route: `/api/v1/auth/me`
+- Access: Private
+
+Example response:
+
+```json
+{
+  "status": "success",
+  "data": {
+    "user": {
+      "id": "cmx123",
+      "username": "jane",
+      "email": "jane@example.com",
+      "bio": "Software developer",
+      "avatarUrl": "https://example.com/avatar.jpg",
+      "createdAt": "2026-08-19T10:30:00.000Z",
+      "updatedAt": "2026-08-19T10:45:00.000Z"
+    }
+  }
+}
 ```
 
 ---
 
-## 1. Authentication (`/auth`)
+## 6. Post Endpoints
 
-### 1.1 Register User
+### 6.1 Get feed
 
-- **Endpoint:** `POST /auth/register`
-- **Access:** Public
-- **Description:** Create a new user account and receive JWT token
-- **Body:**
-  ```json
-  {
-    "username": "jane",
-    "email": "jane@example.com",
-    "password": "Password123!"
-  }
-  ```
-- **Response (201 Created):**
-  ```json
-  {
-    "status": "success",
-    "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
-    "data": {
-      "user": {
-        "id": "user-uuid",
-        "username": "jane",
-        "email": "jane@example.com",
-        "bio": null,
-        "avatarUrl": null,
-        "createdAt": "2026-08-19T10:30:00.000Z"
-      }
-    }
-  }
-  ```
-- **Validation Rules:**
-  - Username & email must be unique
-  - Email must match valid email format
-  - All fields required
-- **Error Responses:**
-  - `400 Bad Request` - Invalid input format
-  - `409 Conflict` - Email/username already exists
+- Method: `GET`
+- Route: `/api/v1/posts`
+- Access: Public
 
-### 1.2 Login User
+Query parameters:
 
-- **Endpoint:** `POST /auth/login`
-- **Access:** Public
-- **Description:** Authenticate with email and password, receive JWT token
-- **Body:**
-  ```json
-  {
-    "email": "jane@example.com",
-    "password": "Password123!"
-  }
-  ```
-- **Response (200 OK):**
-  ```json
-  {
-    "status": "success",
-    "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
-    "data": {
-      "user": {
-        "id": "user-uuid",
-        "username": "jane",
-        "email": "jane@example.com",
-        "bio": "Software developer",
-        "avatarUrl": "https://example.com/avatar.jpg",
-        "createdAt": "2026-08-19T10:30:00.000Z",
-        "updatedAt": "2026-08-19T11:00:00.000Z"
-      }
-    }
-  }
-  ```
-- **Error Responses:**
-  - `400 Bad Request` - Missing/invalid email or password
-  - `401 Unauthorized` - Invalid credentials
+- `page` (optional, default `1`)
+- `limit` (optional, default `10`, max `50`)
 
-### 1.3 Get Current User
+Example:
 
-- **Endpoint:** `GET /auth/me`
-- **Access:** Private (Requires JWT)
-- **Headers:**
-  ```
-  Authorization: Bearer <token>
-  ```
-- **Description:** Retrieve authenticated user's profile information
-- **Response (200 OK):**
-  ```json
-  {
-    "status": "success",
-    "data": {
-      "user": {
-        "id": "user-uuid",
-        "username": "jane",
-        "email": "jane@example.com",
-        "bio": "Software developer",
-        "avatarUrl": "https://example.com/avatar.jpg",
-        "createdAt": "2026-08-19T10:30:00.000Z",
-        "updatedAt": "2026-08-19T11:00:00.000Z"
-      }
-    }
-  }
-  ```
-- **Error Responses:**
-  - `401 Unauthorized` - Invalid or missing token
+```http
+GET /api/v1/posts?page=1&limit=10
+```
 
----
+Example response:
 
-## 2. Posts (`/posts`)
-
-### 2.1 Create Post
-
-- **Endpoint:** `POST /posts`
-- **Access:** Private (Requires JWT)
-- **Description:** Create a new post by authenticated user
-- **Body:**
-  ```json
-  {
-    "content": "Hello everyone! This is my first post on Zap!"
-  }
-  ```
-- **Validation:**
-  - Content must not be empty
-  - Max 200 characters
-- **Response (201 Created):**
-  ```json
-  {
-    "status": "success",
-    "data": {
-      "post": {
-        "id": "post-uuid",
-        "content": "Hello everyone! This is my first post on Zap!",
-        "authorId": "user-uuid",
+```json
+{
+  "status": "success",
+  "data": {
+    "posts": [
+      {
+        "id": "post_123",
+        "content": "A new post from the community",
+        "authorId": "user_1",
         "createdAt": "2026-08-19T12:00:00.000Z",
         "updatedAt": "2026-08-19T12:00:00.000Z",
         "author": {
-          "id": "user-uuid",
+          "id": "user_1",
           "username": "jane",
           "avatarUrl": "https://example.com/avatar.jpg"
-        }
-      }
-    }
-  }
-  ```
-- **Error Responses:**
-  - `400 Bad Request` - Empty or too long content
-  - `401 Unauthorized` - Not authenticated
-
-### 2.2 Get Feed (Paginated)
-
-- **Endpoint:** `GET /posts`
-- **Access:** Public
-- **Query Parameters:**
-  - `page` (optional, default=1) - Page number
-  - `limit` (optional, default=10, max=50) - Posts per page
-- **Description:** Get paginated posts feed ordered by newest first
-- **Example:** `GET /posts?page=1&limit=10`
-- **Response (200 OK):**
-  ```json
-  {
-    "status": "success",
-    "data": {
-      "posts": [
-        {
-          "id": "post-uuid",
-          "content": "Post content...",
-          "authorId": "user-uuid",
-          "createdAt": "2026-08-19T12:00:00.000Z",
-          "updatedAt": "2026-08-19T12:00:00.000Z",
-          "author": {
-            "id": "user-uuid",
-            "username": "jane",
-            "avatarUrl": "https://example.com/avatar.jpg"
-          },
-          "_count": {
-            "likes": 5,
-            "comments": 2
-          }
-        }
-      ],
-      "pagination": {
-        "page": 1,
-        "limit": 10,
-        "totalPosts": 42,
-        "totalPages": 5,
-        "hasNextPage": true
-      }
-    }
-  }
-  ```
-
-### 2.3 Get Single Post
-
-- **Endpoint:** `GET /posts/:id`
-- **Access:** Public
-- **Description:** Retrieve a specific post by ID
-- **Response (200 OK):** Same structure as Create Post response
-- **Error Responses:**
-  - `404 Not Found` - Post doesn't exist
-
-### 2.4 Delete Post
-
-- **Endpoint:** `DELETE /posts/:id`
-- **Access:** Private (Requires JWT, must be post author)
-- **Description:** Delete a post (only by the author)
-- **Response (200 OK):**
-  ```json
-  {
-    "status": "success",
-    "message": "Post deleted successfully"
-  }
-  ```
-- **Error Responses:**
-  - `401 Unauthorized` - Not authenticated
-  - `403 Forbidden` - Not post author
-  - `404 Not Found` - Post doesn't exist
-
----
-
-## 3. Post Interactions (`/posts/:postId/...`)
-
-### 3.1 Toggle Like
-
-- **Endpoint:** `POST /posts/:postId/like`
-- **Access:** Private (Requires JWT)
-- **Description:** Like or unlike a post (toggle behavior)
-- **Body:** (empty)
-- **Response (201 Created - Like Added or 200 OK - Like Removed):**
-  ```json
-  {
-    "status": "success",
-    "message": "Post liked successfully",
-    "liked": true
-  }
-  ```
-  OR (when unliking):
-  ```json
-  {
-    "status": "success",
-    "message": "Post unLiked successfully",
-    "liked": false
-  }
-  ```
-- **Real-time Notification:**
-  - If post author differs from liker: Socket.io emits "notification" with type "LIKE"
-- **Error Responses:**
-  - `401 Unauthorized` - Not authenticated
-  - `404 Not Found` - Post doesn't exist
-
-### 3.2 Add Comment
-
-- **Endpoint:** `POST /posts/:postId/comments`
-- **Access:** Private (Requires JWT)
-- **Description:** Add a comment to a post
-- **Body:**
-  ```json
-  {
-    "content": "Great post! I really enjoyed this."
-  }
-  ```
-- **Response (201 Created):**
-  ```json
-  {
-    "status": "success",
-    "message": "Comment added successfully",
-    "data": {
-      "comment": {
-        "id": "comment-uuid",
-        "content": "Great post! I really enjoyed this.",
-        "postId": "post-uuid",
-        "userId": "user-uuid",
-        "createdAt": "2026-08-19T12:15:00.000Z",
-        "user": {
-          "id": "user-uuid",
-          "username": "jane",
-          "avatarUrl": "https://example.com/avatar.jpg"
-        }
-      }
-    }
-  }
-  ```
-- **Real-time Notification:**
-  - If post author differs from commenter: Socket.io emits "notification" with type "COMMENT"
-- **Error Responses:**
-  - `400 Bad Request` - Empty comment content
-  - `401 Unauthorized` - Not authenticated
-  - `404 Not Found` - Post doesn't exist
-
-### 3.3 Get Post Comments
-
-- **Endpoint:** `GET /posts/:postId/comments`
-- **Access:** Public
-- **Query Parameters:**
-  - `page` (optional, default=1)
-  - `limit` (optional, default=10)
-- **Response (200 OK):**
-  ```json
-  {
-    "status": "success",
-    "data": {
-      "comments": [
-        {
-          "id": "comment-uuid",
-          "content": "Comment content...",
-          "postId": "post-uuid",
-          "userId": "user-uuid",
-          "createdAt": "2026-08-19T12:15:00.000Z",
-          "user": {
-            "id": "user-uuid",
-            "username": "jane",
-            "avatarUrl": "https://example.com/avatar.jpg"
-          }
-        }
-      ],
-      "pagination": {
-        "page": 1,
-        "limit": 10,
-        "totalComments": 5,
-        "totalPages": 1,
-        "hasNextPage": false
-      }
-    }
-  }
-  ```
-
-### 3.4 Delete Comment
-
-- **Endpoint:** `DELETE /comments/:commentId`
-- **Access:** Private (Requires JWT, must be comment author)
-- **Description:** Delete a comment (only by the author)
-- **Response (200 OK):**
-  ```json
-  {
-    "status": "success",
-    "message": "Comment deleted successfully"
-  }
-  ```
-- **Error Responses:**
-  - `401 Unauthorized` - Not authenticated
-  - `403 Forbidden` - Not comment author
-  - `404 Not Found` - Comment doesn't exist
-
----
-
-## 4. Users (`/users`)
-
-### 4.1 Get Public User Profile
-
-- **Endpoint:** `GET /users/:username`
-- **Access:** Public
-- **Description:** Retrieve public profile information for a user by username
-- **Response (200 OK):**
-  ```json
-  {
-    "status": "success",
-    "data": {
-      "user": {
-        "id": "user-uuid",
-        "username": "jane",
-        "bio": "Software developer & tech enthusiast",
-        "avatarUrl": "https://example.com/avatar.jpg",
-        "createdAt": "2026-08-19T10:30:00.000Z",
+        },
         "_count": {
-          "posts": 12
+          "likes": 5,
+          "comments": 2
         }
       }
+    ],
+    "pagination": {
+      "page": 1,
+      "limit": 10,
+      "totalPosts": 52,
+      "totalPages": 6,
+      "hasNextPage": true
     }
   }
-  ```
-- **Note:** Public profile doesn't expose email or private data
-- **Error Responses:**
-  - `404 Not Found` - User doesn't exist
+}
+```
 
-### 4.2 Update Own Profile
+### 6.2 Create a post
 
-- **Endpoint:** `PATCH /users/me`
-- **Access:** Private (Requires JWT)
-- **Description:** Update authenticated user's bio and avatar URL
-- **Body:**
-  ```json
-  {
-    "bio": "Updated bio text",
-    "avatarUrl": "https://example.com/new-avatar.jpg"
-  }
-  ```
-- **Note:** Both fields are optional - only send fields you want to update
-- **Response (200 OK):**
-  ```json
-  {
-    "status": "success",
-    "data": {
-      "user": {
-        "id": "user-uuid",
+- Method: `POST`
+- Route: `/api/v1/posts`
+- Access: Private
+
+Request body:
+
+```json
+{
+  "content": "Hello everyone! This is my first post on Zap."
+}
+```
+
+Validation rules:
+
+- `content` is required
+- must be a non-empty string
+- maximum length is 200 characters
+
+Example response:
+
+```json
+{
+  "status": "success",
+  "data": {
+    "post": {
+      "id": "post_123",
+      "content": "Hello everyone! This is my first post on Zap.",
+      "authorId": "user_1",
+      "createdAt": "2026-08-19T12:00:00.000Z",
+      "updatedAt": "2026-08-19T12:00:00.000Z",
+      "author": {
+        "id": "user_1",
         "username": "jane",
-        "bio": "Updated bio text",
-        "avatarUrl": "https://example.com/new-avatar.jpg",
-        "createdAt": "2026-08-19T10:30:00.000Z",
-        "updatedAt": "2026-08-19T13:00:00.000Z"
+        "avatarUrl": "https://example.com/avatar.jpg"
       }
     }
   }
-  ```
-- **Error Responses:**
-  - `400 Bad Request` - Invalid field types
-  - `401 Unauthorized` - Not authenticated
+}
+```
+
+### 6.3 Get a single post by ID
+
+- Method: `GET`
+- Route: `/api/v1/posts/:id`
+- Access: Public
+
+### 6.4 Delete a post
+
+- Method: `DELETE`
+- Route: `/api/v1/posts/:id`
+- Access: Private
+
+Only the post author can delete the post.
+
+Example response:
+
+```json
+{
+  "status": "success",
+  "message": "Post deleted successfully"
+}
+```
 
 ---
 
-## 5. Follow System (`/users/:targetUserId/...`)
+## 7. Post Interaction Endpoints
 
-### 5.1 Toggle Follow/Unfollow
+### 7.1 Toggle like on a post
 
-- **Endpoint:** `POST /users/:targetUserId`
-- **Access:** Private (Requires JWT)
-- **Description:** Follow or unfollow a user (toggle behavior)
-- **Body:** (empty)
-- **Response (201 Created - Following or 200 OK - Unfollowed):**
-  ```json
-  {
-    "status": "success",
-    "message": "Followed successfully.",
-    "following": true
-  }
-  ```
-  OR (when unfollowing):
-  ```json
-  {
-    "status": "success",
-    "message": "Unfollowed successfully",
-    "following": false
-  }
-  ```
-- **Real-time Notification:**
-  - If user follows another: Socket.io emits "notification" with type "FOLLOW" to target user
-- **Validation:**
-  - Cannot follow yourself
-- **Error Responses:**
-  - `400 Bad Request` - Attempting to follow yourself
-  - `401 Unauthorized` - Not authenticated
-  - `404 Not Found` - Target user doesn't exist
+- Method: `POST`
+- Route: `/api/v1/posts/:postId/like`
+- Access: Private
 
-### 5.2 Get Followers List
+Behavior:
 
-- **Endpoint:** `GET /users/:targetUserId/followers`
-- **Access:** Public
-- **Query Parameters:**
-  - `page` (optional, default=1)
-  - `limit` (optional, default=10)
-- **Description:** Get paginated list of users following the target user
-- **Response (200 OK):**
-  ```json
-  {
-    "status": "success",
-    "data": {
-      "followers": [
-        {
-          "id": "follower-uuid",
-          "username": "john",
-          "avatarUrl": "https://example.com/john-avatar.jpg"
-        }
-      ],
-      "pagination": {
-        "page": 1,
-        "limit": 10,
-        "totalFollowers": 25,
-        "totalPages": 3,
-        "hasNextPage": true
+- If the user has not liked the post, a like is created.
+- If the user has already liked the post, the like is removed.
+
+Example response when liked:
+
+```json
+{
+  "status": "success",
+  "message": "Post liked successfully",
+  "liked": true
+}
+```
+
+Example response when unliked:
+
+```json
+{
+  "status": "success",
+  "message": "Post unLiked successfully",
+  "liked": false
+}
+```
+
+### 7.2 Add a comment
+
+- Method: `POST`
+- Route: `/api/v1/posts/:postId/comments`
+- Access: Private
+
+Request body:
+
+```json
+{
+  "content": "This is a great post."
+}
+```
+
+Example response:
+
+```json
+{
+  "status": "success",
+  "data": {
+    "comment": {
+      "id": "comment_123",
+      "content": "This is a great post.",
+      "postId": "post_123",
+      "userId": "user_1",
+      "createdAt": "2026-08-19T12:15:00.000Z",
+      "user": {
+        "id": "user_1",
+        "username": "jane",
+        "avatarUrl": "https://example.com/avatar.jpg"
       }
     }
   }
-  ```
-- **Error Responses:**
-  - `404 Not Found` - User doesn't exist
+}
+```
 
-### 5.3 Get Following List
+### 7.3 Get comments for a post
 
-- **Endpoint:** `GET /users/:targetUserId/following`
-- **Access:** Public
-- **Query Parameters:**
-  - `page` (optional, default=1)
-  - `limit` (optional, default=10)
-- **Description:** Get paginated list of users that the target user is following
-- **Response (200 OK):** Same structure as Get Followers List
-- **Error Responses:**
-  - `404 Not Found` - User doesn't exist
+- Method: `GET`
+- Route: `/api/v1/posts/:postId/comments`
+- Access: Public
+
+Query parameters:
+
+- `page` (optional, default `1`)
+- `limit` (optional, default `10`)
+
+### 7.4 Delete a comment
+
+- Method: `DELETE`
+- Route: `/api/v1/comments/:commentId`
+- Access: Private
+
+Only the comment owner can delete the comment.
 
 ---
 
-## 6. Messaging (`/messages`)
+## 8. User Endpoints
 
-### 6.1 Get Chat History
+### 8.1 Get a public user profile
 
-- **Endpoint:** `GET /messages/:otherUserId`
-- **Access:** Private (Requires JWT)
-- **Query Parameters:**
-  - `page` (optional, default=1)
-  - `limit` (optional, default=20, max=50)
-- **Description:** Retrieve message history between current user and another user, paginated
-- **Response (200 OK):**
-  ```json
-  {
-    "status": "success",
-    "data": {
-      "messages": [
-        {
-          "id": "message-uuid",
-          "content": "Hey, how are you?",
-          "senderId": "sender-uuid",
-          "receiverId": "receiver-uuid",
-          "createdAt": "2026-08-19T14:00:00.000Z",
-          "sender": {
-            "id": "sender-uuid",
-            "username": "jane",
-            "avatarUrl": "https://example.com/avatar.jpg"
-          }
-        }
-      ],
-      "pagination": {
-        "page": 1,
-        "limit": 20,
-        "totalMessages": 45,
-        "totalPages": 3,
-        "hasNextPage": true
+- Method: `GET`
+- Route: `/api/v1/users/:username`
+- Access: Public
+
+Example response:
+
+```json
+{
+  "status": "success",
+  "data": {
+    "user": {
+      "id": "user_1",
+      "username": "jane",
+      "bio": "Software developer",
+      "avatarUrl": "https://example.com/avatar.jpg",
+      "createdAt": "2026-08-19T10:30:00.000Z",
+      "_count": {
+        "posts": 12
       }
     }
   }
-  ```
-- **Note:** Messages are ordered from oldest to newest within each page
-- **Real-time (Socket.io):**
-  - New messages sent via WebSocket to connected recipients
-  - Event name: `message`
-- **Error Responses:**
-  - `400 Bad Request` - Invalid user ID
-  - `401 Unauthorized` - Not authenticated
+}
+```
+
+### 8.2 Update user profile
+
+- Method: `PATCH`
+- Route: `/api/v1/users/me`
+- Access: Private
+
+Request body:
+
+```json
+{
+  "bio": "Updated bio",
+  "avatarUrl": "https://example.com/new-avatar.jpg"
+}
+```
+
+### 8.3 Toggle follow or unfollow
+
+- Method: `POST`
+- Route: `/api/v1/users/:targetUserId`
+- Access: Private
+
+This endpoint acts as a toggle.
+
+Example response when following:
+
+```json
+{
+  "status": "success",
+  "message": "Followed successfully.",
+  "following": true
+}
+```
+
+Example response when unfollowing:
+
+```json
+{
+  "status": "success",
+  "message": "Unfollowed successfully",
+  "following": false
+}
+```
+
+### 8.4 Get followers
+
+- Method: `GET`
+- Route: `/api/v1/users/:targetUserId/followers`
+- Access: Public
+
+### 8.5 Get following
+
+- Method: `GET`
+- Route: `/api/v1/users/:targetUserId/following`
+- Access: Public
 
 ---
 
-## 📡 Socket.io Real-time Events
+## 9. Messaging Endpoints
 
-### Connection
+### 9.1 Get chat history
+
+- Method: `GET`
+- Route: `/api/v1/messages/:otherUserId`
+- Access: Private
+
+Query parameters:
+
+- `page` (optional, default `1`)
+- `limit` (optional, default `20`, max `50`)
+
+Example response:
+
+```json
+{
+  "status": "success",
+  "data": {
+    "messages": 12,
+    "pagination": {
+      "page": 1,
+      "limit": 20,
+      "totalMessages": 12,
+      "totalPages": 1,
+      "hasNextPage": false
+    }
+  }
+}
+```
+
+> Note: The current controller implementation returns `messages` as a count value rather than the actual array. This is important for client-side integration and should be corrected if the intended chat API is to return message records rather than a numeric summary.
+
+---
+
+## 10. Health and Operational Endpoints
+
+### 10.1 Server health check
+
+- Method: `GET`
+- Route: `/health`
+- Access: Public
+
+Example response:
+
+```json
+{
+  "status": "ok",
+  "message": "Server is running healthy."
+}
+```
+
+---
+
+## 11. Real-Time Events with Socket.IO
+
+The backend initializes Socket.IO and authenticates each client using a JWT token.
+
+### Connection example
 
 ```javascript
-// Client connects with JWT token
 const socket = io("http://localhost:3000", {
   auth: {
-    token: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+    token: "<jwt_token>",
   },
-  transports: ["websocket"],
-});
-
-// Server validates token and establishes connection
-socket.on("connect", () => {
-  console.log("Connected to server");
 });
 ```
 
-### User-Specific Rooms
+### Authenticated socket behavior
 
-Each authenticated user is added to a room: `user:{userId}`
+- User is joined into a room named `user:<userId>`
+- Notifications for likes, comments, and follows are emitted to the target user room
+- Direct message events are emitted to the receiving user room
 
-```
-Example: user:12345 → Receives notifications targeted to user 12345
-```
+### Event list
 
-### Notification Events
+#### `notification`
 
-**1. Like Notification**
+Emitted when a user interacts with another user’s content.
 
-```javascript
-socket.on("notification", (data) => {
-  // data.type === "LIKE"
-  // data.message === "Someone liked your post!"
-  // data.postId === "post-uuid"
-  // data.triggeredBy === "user-uuid" (who liked)
-});
-```
+Example payload:
 
-**2. Comment Notification**
-
-```javascript
-socket.on("notification", (data) => {
-  // data.type === "COMMENT"
-  // data.message === "@jane commented on your post!"
-  // data.postId === "post-uuid"
-  // data.commentId === "comment-uuid"
-  // data.triggeredBy === { id, username, avatarUrl }
-});
+```json
+{
+  "type": "LIKE",
+  "message": "Someone liked your post!",
+  "postId": "post_123",
+  "triggeredBy": "user_2"
+}
 ```
 
-**3. Follow Notification**
+Supported notification types:
 
-```javascript
-socket.on("notification", (data) => {
-  // data.type === "FOLLOW"
-  // data.message === "A user started following you"
-  // data.followerId === "user-uuid"
-});
-```
+- `LIKE`
+- `COMMENT`
+- `FOLLOW`
 
-### Message Event (Future Implementation)
+#### `receive_message`
 
-```javascript
-socket.on("message", (data) => {
-  // data.id === "message-uuid"
-  // data.content === "Message content"
-  // data.senderId === "sender-uuid"
-  // data.receiverId === "receiver-uuid"
-  // data.createdAt === "2026-08-19T14:00:00.000Z"
-});
-```
+Emitted when a message is delivered to the recipient user.
+
+#### `message_sent`
+
+Emitted back to the sender after message persistence succeeds.
+
+#### `error`
+
+Emitted to the client when message delivery or socket actions fail.
 
 ---
 
-## 🔧 Utility Functions & Helpers
+## 12. Security and Infrastructure Notes
 
-### Password Utilities
+### Security practices implemented
 
-```typescript
-hashPassword(password: string) → Promise<string>
-  // Hashes password using bcrypt with 10 salt rounds
+- Passwords are hashed using bcrypt before storage
+- JWTs are used to protect private routes
+- CORS is enabled for the client origin
+- Prisma enforces referential integrity and unique constraints
 
-comparePasswords(password: string, hash: string) → Promise<boolean>
-  // Compares plain password with hash
-```
+### Environment configuration
 
-### JWT Utilities
+The backend expects environment variables such as:
 
-```typescript
-signToken(payload: { userId: string }) → string
-  // Creates JWT with userId payload
-  // Expiration: Configured in .env (typically 7 days)
+- `DATABASE_URL`
+- `JWT_SECRET`
+- `CLIENT_URL`
 
-verifyToken(token: string) → { userId: string }
-  // Decodes and verifies JWT signature
-  // Throws error if invalid or expired
-```
+### Production readiness considerations
 
-### Error Class
+For a production-grade deployment, the team should consider adding:
 
-```typescript
-ApiError.badRequest(message) → ApiError (400)
-ApiError.unauthorized(message) → ApiError (401)
-ApiError.forbidden(message) → ApiError (403)
-ApiError.notFound(message) → ApiError (404)
-ApiError.conflict(message) → ApiError (409)
-```
+- request validation middleware
+- rate limiting
+- request logging and monitoring
+- structured tracing
+- refresh-token flow
+- API throttling and abuse detection
+- stricter pagination and filtering standards
+- message API endpoints for sending and deleting direct messages
 
 ---
 
-## ✅ Best Practices for API Usage
+## 13. Route Summary
 
-1. **Rate Limiting:** Implement on client side to prevent spam
-2. **Pagination:** Always use pagination for endpoints returning lists
-3. **Error Handling:** Check `status` field and handle errors gracefully
-4. **Token Management:** Refresh tokens before expiration (implement refresh endpoint if needed)
-5. **WebSocket:** Maintain persistent connection for real-time notifications
-6. **Validation:** Validate inputs before sending to API
-7. **Security:** Never expose JWT token in URLs; use Authorization header only
+| Resource       | Method   | Path                                    | Access  |
+| -------------- | -------- | --------------------------------------- | ------- |
+| Health check   | `GET`    | `/health`                               | Public  |
+| Register       | `POST`   | `/api/v1/auth/register`                 | Public  |
+| Login          | `POST`   | `/api/v1/auth/login`                    | Public  |
+| Current user   | `GET`    | `/api/v1/auth/me`                       | Private |
+| Feed           | `GET`    | `/api/v1/posts`                         | Public  |
+| Create post    | `POST`   | `/api/v1/posts`                         | Private |
+| Get post       | `GET`    | `/api/v1/posts/:id`                     | Public  |
+| Delete post    | `DELETE` | `/api/v1/posts/:id`                     | Private |
+| Toggle like    | `POST`   | `/api/v1/posts/:postId/like`            | Private |
+| Add comment    | `POST`   | `/api/v1/posts/:postId/comments`        | Private |
+| Get comments   | `GET`    | `/api/v1/posts/:postId/comments`        | Public  |
+| Delete comment | `DELETE` | `/api/v1/comments/:commentId`           | Private |
+| Update profile | `PATCH`  | `/api/v1/users/me`                      | Private |
+| Toggle follow  | `POST`   | `/api/v1/users/:targetUserId`           | Private |
+| Followers      | `GET`    | `/api/v1/users/:targetUserId/followers` | Public  |
+| Following      | `GET`    | `/api/v1/users/:targetUserId/following` | Public  |
+| User profile   | `GET`    | `/api/v1/users/:username`               | Public  |
+| Chat history   | `GET`    | `/api/v1/messages/:otherUserId`         | Private |
 
 ---
 
-## 🔗 Related Documentation
+## 14. Notes for Frontend Integration
 
-- Client Architecture: See `REACT_ARCHITECTURE.md`
-- Database Schema: See `server/prisma/schema.prisma`
-- Environment Variables: Configure in `server/.env`
+- Store the JWT in a secure client-side storage mechanism and attach it to every protected request.
+- Use the Socket.IO connection for notifications and direct-message updates.
+- Handle all API errors by checking the HTTP status code and message.
+- Apply pagination on all list endpoints to keep large datasets manageable.
+- Normalize all returned IDs and timestamps before rendering UI state.
 
-**Last Updated:** August 19, 2026  
-**API Version:** v1  
-**Status:** Active Development
+This API is structured for a modern social product and is a solid foundation for further features such as richer messaging, media uploads, activity feeds, search, moderation, and analytics.
+
+Last updated: 2026-09-01
