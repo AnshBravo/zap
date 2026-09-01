@@ -1,623 +1,445 @@
-# Zap React App - Architecture Preview
+# Zap Frontend Architecture
 
 ## Overview
 
-**Zap** is a modern React 19 + TypeScript single-page application built with Vite, featuring real-time messaging, authentication, and a responsive 3-column layout. It uses TailwindCSS for styling and Socket.io for real-time communication.
+Zap is a social media platform built with React 19, TypeScript, and Vite. The frontend is structured as a modular single-page application with authenticated routes, a responsive shell layout, and real-time communication through Socket.IO. The architecture is designed to support social interactions such as posting, following, messaging, notifications, profile browsing, and content discovery while maintaining a clean separation between UI, application state, and API services.
 
 ---
 
-## 📊 High-Level Architecture Diagram
+## Architectural Summary
 
-```
-┌─────────────────────────────────────────────────────────┐
-│                    React Application                     │
-│                       (main.tsx)                          │
-└──────────────────────┬──────────────────────────────────┘
-                       │
-        ┌──────────────┼──────────────┐
-        │              │              │
-    ┌───▼────┐   ┌────▼───┐   ┌─────▼────┐
-    │ Theme  │   │  Auth  │   │  Socket  │
-    │Context │   │Context │   │ Context  │
-    └────────┘   └────────┘   └──────────┘
-        │              │              │
-        └──────────────┼──────────────┘
-                       │
-                   ┌───▼────┐
-                   │   App  │
-                   │Router  │
-                   └───┬────┘
-                       │
-        ┌──────────────┼──────────────┐
-        │              │              │
-    ┌───▼──────┐  ┌────▼────┐  ┌─────▼────┐
-    │ Sidebar  │  │  Content │  │RightBar  │
-    │ (Layout) │  │  (Pages) │  │(Widgets) │
-    └──────────┘  └──────────┘  └──────────┘
+The client application follows a layered architecture:
+
+- Presentation layer: pages, layout components, and reusable UI blocks
+- State layer: React context providers for authentication, theme, and socket connectivity
+- Service layer: Axios-based API modules for backend communication
+- Real-time layer: Socket.IO client listeners and event-driven updates
+- Routing layer: protected route structure with page-level navigation
+
+At a high level:
+
+```text
+React App
+  ├─ App shell and routing
+  ├─ Auth / theme / socket providers
+  ├─ Page-level feature modules
+  │   ├─ Feed
+  │   ├─ Explore
+  │   ├─ Messages
+  │   ├─ Notifications
+  │   ├─ Profile
+  │   └─ Follow lists
+  ├─ Reusable components
+  ├─ API client modules
+  └─ Shared utilities and types
 ```
 
 ---
 
-## 🗂️ Project Structure
+## Tech Stack
 
-### Root Level
+### Core frontend stack
 
-```
+- React 19
+- TypeScript
+- Vite
+- React Router
+- Tailwind CSS
+- Axios
+- Socket.IO Client
+- Framer Motion
+- Lucide React
+
+### Why this stack
+
+- React and TypeScript provide a typed, scalable component model
+- Vite enables quick developer iteration and efficient production builds
+- React Router governs authenticated navigation and page rendering
+- Tailwind supports rapid UI development with a consistent design system
+- Axios centralizes backend communication and token handling
+- Socket.IO enables real-time messaging and notifications without full page refreshes
+
+---
+
+## Project Structure
+
+```text
 client/
 ├── src/
-│   ├── main.tsx              # Entry point with context providers
-│   ├── App.tsx               # Router configuration
-│   ├── index.css             # Global styles
-│   ├── App.css               # App-specific styles
+│   ├── App.tsx                     # Route definitions and protected layout
+│   ├── main.tsx                    # App bootstrap and provider wiring
+│   ├── index.css                   # Tailwind base and global styles
+│   ├── App.css                     # App-specific styling overrides
 │   ├── api/
+│   │   ├── axios.ts                # Shared API config and interceptors
+│   │   ├── auth.ts                 # Authentication endpoints
+│   │   ├── posts.ts                # Feed and post APIs
+│   │   ├── users.ts                # Profile and follow APIs
+│   │   ├── messages.ts             # Messaging APIs
+│   │   └── ...
 │   ├── components/
+│   │   ├── common/
+│   │   │   └── Animations.tsx      # Shared motion utilities
+│   │   ├── feed/
+│   │   │   ├── PostCard.tsx        # Post list item rendering
+│   │   │   └── PostComposer.tsx    # New post composer
+│   │   └── layout/
+│   │       ├── AppLayout.tsx       # Main responsive shell
+│   │       ├── Sidebar.tsx         # Desktop navigation
+│   │       ├── MobileNavbar.tsx    # Mobile navigation
+│   │       ├── TopNavbar.tsx       # Top header navigation
+│   │       ├── RightWidgetSidebar.tsx
+│   │       └── ...
 │   ├── context/
+│   │   ├── AuthContext.tsx         # Auth and session state
+│   │   ├── SocketContext.tsx       # Socket lifecycle and connection state
+│   │   └── ThemeContext.tsx        # Theme toggling and persistence
+│   ├── hooks/
+│   │   └── ...                     # Reusable feature hooks
 │   ├── pages/
+│   │   ├── FeedPage.tsx            # Home feed
+│   │   ├── ExplorePage.tsx         # Browse and discover content
+│   │   ├── MessagesPage.tsx        # Messaging interface
+│   │   ├── NotificationsPage.tsx   # Notification stream
+│   │   ├── ProfilePage.tsx         # User profile page
+│   │   ├── FollowListPage.tsx     # Followers / following lists
+│   │   ├── LoginPage.tsx           # Auth login view
+│   │   ├── RegisterPage.tsx        # Auth registration view
+│   │   └── ...
 │   ├── types/
-│   └── utils/
-├── public/                   # Static assets
-├── package.json              # Dependencies
-├── vite.config.ts            # Vite build config
-├── tailwind.config.ts        # TailwindCSS configuration
-├── tsconfig.json             # TypeScript config
-├── eslint.config.js          # ESLint rules
-└── index.html                # HTML entry point
+│   │   └── index.ts                # Shared application types
+│   ├── utils/
+│   │   └── ...                     # Formatters and helpers
+│   └── assets/
+├── public/
+├── index.html
+├── package.json
+├── vite.config.ts
+├── tsconfig.json
+├── tsconfig.app.json
+├── tsconfig.node.json
+├── tailwind.config.ts
+├── eslint.config.js
+└── README.md
 ```
 
 ---
 
-## 🔄 Context Providers (Dependency Injection)
+## Application Shell and Layout
 
-### 1. **ThemeContext** (`src/context/ThemeContext.tsx`)
+The app uses a consistent shell across authenticated routes via `AppLayout`.
 
-Manages application-wide theme state (dark/light mode)
+### Layout responsibilities
 
-```
-Features:
-├── State: theme ("dark" | "light")
-├── Storage: localStorage ("zap_theme")
-├── Auto-detect: System preference if not stored
-├── Hook: useTheme()
-└── Functionality:
-    ├── toggleTheme()
-    └── Applies "dark" class to document root
-```
+- Desktop: three-column composition with navigation, content, and widgets
+- Mobile: compact stacked layout with persistent navigation
+- Shared page wrappers to preserve visual consistency across the app
+- Route transitions and smooth motion through reusable animation utilities
 
-### 2. **AuthContext** (`src/context/AuthContext.tsx`)
+### Layout structure
 
-Manages user authentication and session
-
-```
-Features:
-├── State:
-│   ├── user: User | null
-│   ├── token: JWT token
-│   ├── isAuthenticated: boolean
-│   └── isLoading: boolean
-├── Storage: localStorage ("zap_token", "zap_user")
-├── Methods:
-│   ├── login(email, password)
-│   ├── register(username, email, password)
-│   ├── logout()
-│   └── updateUser(fields)
-├── Hook: useAuth()
-└── Initialization:
-    └── Restores session on app load from localStorage
+```text
+AppLayout
+  ├─ Sidebar / Navigation
+  ├─ Main Content Outlet
+  └─ Right Sidebar / Widgets
 ```
 
-### 3. **SocketContext** (`src/context/SocketContext.tsx`)
-
-Manages WebSocket connection for real-time features
-
-```
-Features:
-├── Library: Socket.io-client
-├── State:
-│   ├── socket: Socket instance | null
-│   └── isConnected: boolean
-├── Server URL: VITE_SOCKET_URL or "http://localhost:3000"
-├── Authentication: Uses JWT token from AuthContext
-├── Connection Logic:
-│   ├── Only connects when authenticated
-│   ├── Auto-disconnects on logout
-│   └── Uses WebSocket transport
-├── Hook: useSocket()
-└── Events:
-    ├── "connect" → sets isConnected = true
-    └── "disconnect" → sets isConnected = false
-```
-
-**Provider Nesting (main.tsx):**
-
-```
-ThemeProvider (outermost)
-  └─ AuthProvider
-      └─ SocketProvider
-          └─ App (Router)
-```
+This design keeps feature pages focused on business logic while the shell handles structure, spacing, and navigation behavior.
 
 ---
 
-## 📍 Routing & Pages
+## Routing Model
 
-### Routes (`src/App.tsx`)
+The application routes are centralized in `App.tsx` and guarded by authentication state.
 
-```
-Public Routes:
-├── /login                 → LoginPage
-└── /register              → RegisterPage
+### Public routes
 
-Protected Routes (within AppLayout):
-├── /                      → FeedPage (Home Feed)
-├── /explore               → ExplorePage
-├── /notifications         → NotificationsPage
-├── /messages              → MessagesPage
-├── /profile               → ProfilePage (Current user)
-└── /profile/:username     → ProfilePage (Other users)
+- `/login`
+- `/register`
 
-Catch-all:
-└── *                      → Redirects to /
+### Protected routes
 
-Guard: ProtectedRoutes Component
-├── Checks: isAuthenticated & isLoading
-├── Shows: Loading state during authentication check
-└── Currently: Protection disabled (commented out)
-```
+- `/`
+- `/explore`
+- `/notifications`
+- `/messages`
+- `/profile`
+- `/profile/:username`
+- `/profile/:username/followers`
+- `/profile/:username/following`
 
-### Page Components (`src/pages/`)
+### Routing principle
 
-- **LoginPage** - Authentication form
-- **RegisterPage** - User registration form
-- **HomePage** - Placeholder (FeedPage in routes)
-- **ProfilePage** - User profile view
-- Other pages: ExplorePage, NotificationsPage, MessagesPage (placeholders)
+Protected routes only render when the user is authenticated and the session is ready. Until then, the app keeps the user in a loading state to prevent flashes of unauthenticated content.
 
 ---
 
-## 🎨 Layout System
+## State Management
 
-### AppLayout (`src/components/layout/AppLayout.tsx`)
+### 1. Auth context
 
-Responsive 3-column layout:
+`AuthContext` owns the authenticated user session and session persistence.
 
-```
-Desktop (3-column):
-┌─────────────────────────────────────────────┐
-│    Sidebar    │      Content      │  Widget │
-│   (Fixed)     │      (Main)       │  (Fixed)│
-│               │  <Outlet />       │         │
-│               │  (Routes here)    │         │
-└─────────────────────────────────────────────┘
+Responsibilities:
 
-Mobile:
-┌──────────────────────┐
-│   Mobile Navbar      │  (Sticky top)
-├──────────────────────┤
-│    Content           │  (Slides up under navbar)
-│   <Outlet />         │
-├──────────────────────┤
-│  Mobile Nav Bar      │  (Fixed bottom)
-└──────────────────────┘
-```
+- track signed-in user information
+- manage token storage
+- maintain authentication state
+- persist user session across refreshes
+- handle logout and invalid token recovery
 
-### Layout Components
+### 2. Theme context
 
-- **Sidebar** (`src/components/layout/Sidebar.tsx`)
-  - Navigation menu (desktop only)
-  - Fixed positioning
-- **RightWidgetSidebar** (`src/components/layout/RightWidgetSidebar.tsx`)
-  - Right-side widgets (desktop only)
-  - Fixed positioning
+`ThemeContext` manages the application visual mode.
 
-- **MobileNavbar** (`src/components/layout/MobileNavbar.tsx`)
-  - Mobile-specific navigation
-  - Fixed at bottom on mobile
+Responsibilities:
 
-- **PageTransition** (Animations component)
-  - Wraps `<Outlet />` for route transition effects
-  - Uses Framer Motion
+- dark / light mode toggling
+- persisted preference in local storage
+- applying the global theme class to the document root
+
+### 3. Socket context
+
+`SocketContext` manages the live connection used for notifications and messaging.
+
+Responsibilities:
+
+- initialize connection after authentication
+- share socket instance with components
+- listen for connection/disconnection lifecycle events
+- handle user-specific room subscriptions and event-driven updates
+
+The app intentionally keeps these concerns decoupled so that page components can focus on feature interactions rather than transport lifecycle details.
 
 ---
 
-## 📦 Data Types (`src/types/index.ts`)
+## API Layer
 
-```typescript
-User {
-  id: string
-  username: string
-  email?: string
-  bio?: string
-  avatarUrl?: string | null
-  createdAt?: string
+The frontend uses a centralized Axios client in `src/api/axios.ts`.
+
+### API configuration
+
+- shared base URL derived from environment configuration
+- JSON content type for all requests
+- automatic bearer token attachment for authenticated calls
+- centralized unauthorized handling to clear stale session data and force re-authentication
+
+### Request flow
+
+```text
+Component action
+  ↓
+API module method
+  ↓
+Axios request interceptor
+  ↓
+Authorization header attached
+  ↓
+Backend response
+  ↓
+Local component state update / UI refresh
+```
+
+### API module organization
+
+Features are separated by domain:
+
+- `auth` for login, signup, session checks
+- `posts` for feed, post creation, likes, comments
+- `users` for profile data, follow state, followers, following
+- `messages` for conversation history and message sending
+
+This keeps the app maintainable as the number of endpoints increases.
+
+---
+
+## Real-time Communication
+
+The client uses Socket.IO for immediacy in social features such as:
+
+- direct messaging
+- live notifications
+- feed/event-driven updates
+
+### Typical socket usage pattern
+
+- connect when user is authenticated
+- subscribe to user-specific rooms using the authenticated user id
+- listen for event payloads such as `receive_message` and `notification`
+- update local UI state immediately without refetching the entire page
+
+This pattern improves perceived responsiveness and supports collaborative social behavior in real time.
+
+---
+
+## Feature Architecture
+
+### Feed
+
+The feed page loads posts from the backend, displays the composer for new posts, and supports content interactions such as:
+
+- creating a new post
+- liking posts
+- adding comments
+- viewing author metadata and timestamps
+
+### Explore
+
+The explore page is designed for discovery and content browsing. It includes list-based UI patterns for browsing posts and searching for users or content while preserving the same interaction model as the main feed.
+
+### Messages
+
+The messaging feature is built around conversation history and real-time message delivery.
+
+Flow:
+
+- load conversations with one or more users
+- display ordered message history
+- send new messages through the API and socket channel
+- update the message list in real time on receipt
+
+### Notifications
+
+The notification page listens to backend-emitted notification events and maps them into a readable output format for the user.
+
+### Profile and follow system
+
+The profile experience includes:
+
+- viewing a selected user profile
+- following or unfollowing users
+- displaying follower and following counts
+- opening dedicated follower and following list pages
+- linking user counts to relationship views
+
+This is implemented as a directional social graph where:
+
+- followers = users who follow this profile
+- following = users this profile follows
+
+---
+
+## Data and Domain Model
+
+The frontend expects several domain entities with consistent fields across the backend and UI.
+
+### Representative types
+
+```ts
+interface User {
+  id: string;
+  username: string;
+  email?: string;
+  bio?: string;
+  avatarUrl?: string | null;
+  createdAt?: string;
+}
+
+interface Post {
+  id: string;
+  authorId: string;
+  content: string;
+  createdAt: string;
+  updatedAt?: string;
+  author?: User;
   _count?: {
-    posts: number
-    followers: number
-    following: number
-  }
+    likes: number;
+    comments: number;
+  };
 }
 
-Post {
-  id: string
-  username: string
-  authorId: string
-  createdAt: string
-  updatedAt: string
-  author: { id, username, avatarUrl }
-  _count: { likes, comments }
+interface Comment {
+  id: string;
+  content: string;
+  userId: string;
+  postId: string;
+  createdAt: string;
+  user?: User;
 }
 
-Comment {
-  id: string
-  content: string
-  postId: string
-  userId: string
-  createdAt: string
-  user: { id, username, avatarUrl }
-}
-
-Message {
-  id: string
-  content: string
-  senderId: string
-  receiverId: string
-  createdAt: string
-  sender: { id, username, avatarUrl }
-}
-
-AuthState {
-  user: User | null
-  token: string | null
-  isAuthenticated: boolean
-  isLoading: boolean
+interface Message {
+  id: string;
+  senderId: string;
+  receiverId: string;
+  content: string;
+  createdAt: string;
+  sender?: User;
 }
 ```
 
----
-
-## 🔌 API Integration
-
-### Axios Instance (`src/api/axios.ts`)
-
-**Base Configuration:**
-
-```javascript
-Base URL: import.meta.env.VITE_API_URL || "http://localhost:3000/api/v1"
-Content-Type: application/json
-```
-
-**Request Interceptor:**
-
-```
-Automatically attaches JWT token to all requests:
-Authorization: Bearer <zap_token>
-(Retrieved from localStorage)
-```
-
-**Response Interceptor:**
-
-```
-On 401 (Unauthorized):
-├── Clears localStorage ("zap_token", "zap_user")
-└── Rejects promise (triggers login redirect)
-
-On other errors:
-└── Passes through for component-level handling
-```
-
-**Endpoints Used:**
-
-```
-POST /auth/login
-  Request: { email, password }
-  Response: { data: { user, token } }
-
-POST /auth/register
-  Request: { username, email, password }
-  Response: { data: { user, token } }
-
-[Other endpoints to be implemented for posts, users, messages, etc.]
-```
+This shared structure makes it easier to compose UI elements consistently across pages and screens.
 
 ---
 
-## 🎯 Key Features & Dependencies
+## Security and Session Handling
 
-### Core Libraries
+The frontend follows a session-first approach for secure access:
 
-| Package          | Version | Purpose                 |
-| ---------------- | ------- | ----------------------- |
-| react            | ^19.2.8 | UI framework            |
-| react-dom        | ^19.2.8 | DOM rendering           |
-| react-router-dom | ^7.18.2 | Routing & navigation    |
-| typescript       | ~6.0.2  | Type safety             |
-| vite             | ^8.2.0  | Build tool & dev server |
+- tokens are stored in client storage after login
+- API requests attach the token via interceptor
+- expired or invalid auth triggers cleanup and redirect behavior
+- protected routes prevent access to restricted content before session hydration is complete
 
-### State & Data
-
-| Package               | Version  | Purpose                 |
-| --------------------- | -------- | ----------------------- |
-| @tanstack/react-query | ^5.101.4 | Server state management |
-| axios                 | ^1.19.0  | HTTP client             |
-| socket.io-client      | ^4.8.3   | WebSocket client        |
-
-### UI & Styling
-
-| Package                   | Version | Purpose                  |
-| ------------------------- | ------- | ------------------------ |
-| tailwindcss               | ^4.3.3  | Utility-first CSS        |
-| @tailwindcss/vite         | ^4.3.3  | Vite plugin for Tailwind |
-| lucide-react              | ^1.31.0 | Icon library             |
-| framer-motion             | ^13.1.0 | Animation library        |
-| @fontsource/space-grotesk | ^5.3.0  | Font (Space Grotesk)     |
+This keeps the application resilient to stale or revoked session states while preserving a smooth UX.
 
 ---
 
-## 🎨 Styling System
+## Development and Build Workflow
 
-### TailwindCSS Configuration
-
-- **Utility-first** CSS framework
-- **Custom theme**: Dark mode support via Tailwind
-- **Class utilities**: `dark:` prefix for dark mode variants
-- **Custom colors**: `pure-border-light`, `pure-border-dark` (custom defined)
-- **Responsive design**: Mobile-first breakpoints (lg: for desktop)
-
-### CSS Structure
-
-```
-src/index.css          → Global Tailwind imports and base styles
-src/App.css            → App-scoped component styles
-tailwind.config.ts     → Custom theme configuration
-```
-
-### Responsive Classes in Use
-
-```
-pb-20 lg:pb-0          → Padding bottom responsive to navbar
-border-pure-border-light dark:border-pure-border-dark
-                       → Theme-aware borders
-min-h-screen           → Full viewport height
-flex flex-1 min-w-0    → Flexbox with overflow handling
-```
-
----
-
-## 🔐 Authentication Flow
-
-```
-┌─────────────────┐
-│  User visits    │
-│  /login or /reg │
-└────────┬────────┘
-         │
-         ▼
-┌─────────────────────────────────┐
-│  Submits credentials to API     │
-│  POST /auth/login or /register  │
-└────────┬────────────────────────┘
-         │
-         ▼
-┌──────────────────────────────────┐
-│  API returns: { user, token }    │
-└────────┬─────────────────────────┘
-         │
-         ▼
-┌──────────────────────────────────┐
-│  AuthContext stores:             │
-│  ├─ User in state                │
-│  ├─ Token in state               │
-│  └─ Both in localStorage          │
-└────────┬─────────────────────────┘
-         │
-         ▼
-┌──────────────────────────────────┐
-│  ProtectedRoutes checks auth     │
-│  Allows access to protected      │
-│  routes within AppLayout         │
-└────────┬─────────────────────────┘
-         │
-         ▼
-┌──────────────────────────────────┐
-│  SocketContext initializes       │
-│  WebSocket connection            │
-│  (sends token in auth)           │
-└──────────────────────────────────┘
-```
-
----
-
-## 📲 Real-time Communication (Socket.io)
-
-```
-Connection Flow:
-1. User logs in → AuthContext has token
-2. SocketContext detects isAuthenticated = true
-3. Initializes Socket.io connection with auth token
-4. Server validates token and establishes connection
-5. Listens for "connect" / "disconnect" events
-6. On logout → Socket auto-disconnects
-
-Usage Pattern (in components):
-const { socket, isConnected } = useSocket();
-socket?.on("event_name", (data) => { ... });
-socket?.emit("event_name", data);
-```
-
----
-
-## 📂 Component Organization
-
-### Folder Structure
-
-```
-components/
-├── common/
-│   └── Animations.tsx       → PageTransition, reusable animations
-├── feed/
-│   ├── PostCard.tsx         → Individual post display
-│   └── PostComposer.tsx     → Create new post form
-└── layout/
-    ├── AppLayout.tsx        → Main 3-column layout
-    ├── Sidebar.tsx          → Left navigation
-    ├── RightWidgetSidebar.tsx → Right widgets
-    └── MobileNavbar.tsx     → Mobile bottom nav
-```
-
-### Currently Implemented Components
-
-- **AppLayout** - Main layout wrapper
-- **Sidebar** - Navigation (structure exists)
-- **MobileNavbar** - Mobile navigation (structure exists)
-- **RightWidgetSidebar** - Widget area (structure exists)
-- **PageTransition** - Route animation wrapper
-
-### Placeholder Components (To be implemented)
-
-- **PostCard** - Display individual posts
-- **PostComposer** - Create/compose new posts
-- Custom page components for Explore, Notifications, Messages
-
----
-
-## 🚀 Build & Development Setup
-
-### Scripts (`package.json`)
+### Standard scripts
 
 ```bash
-npm run dev      # Start Vite dev server (hot reload)
-npm run build    # Production build (TypeScript + Vite)
-npm run lint     # ESLint check
-npm run preview  # Preview production build locally
+npm run dev
+npm run build
+npm run lint
+npm run preview
 ```
 
-### Configuration Files
+### Configuration files
 
-- **vite.config.ts** - Vite bundler & dev server config
-- **tsconfig.json** - TypeScript compiler options
-- **tailwind.config.ts** - Tailwind theme & plugins
-- **eslint.config.js** - Code quality rules
-- **.env files** - Environment variables (VITE_API_URL, VITE_SOCKET_URL)
+- `vite.config.ts` for dev/build bundling
+- `tsconfig*.json` for TypeScript configuration
+- `tailwind.config.ts` for theming and utility configuration
+- `eslint.config.js` for lint enforcement
 
-### Environment Variables
-
-```
-VITE_API_URL=http://localhost:3000/api/v1
-VITE_SOCKET_URL=http://localhost:3000
-```
+This setup is suitable for ongoing frontend delivery and iterative feature work without introducing excessive complexity.
 
 ---
 
-## 🔄 State Management Strategy
+## Design Principles
 
-### Context API (Current)
+The current frontend architecture follows a few core principles:
 
-- **ThemeContext** - Global theme state
-- **AuthContext** - User & authentication state
-- **SocketContext** - WebSocket connection
-
-### React Query (Installed but not yet integrated)
-
-- For server-state management
-- Caching API responses
-- Automatic refetching
-
-### Local Component State
-
-- Form inputs, UI toggles, loading states
-- Not centralized (managed in individual components)
+1. Feature-first organization: screens and modules are grouped by user-facing capability.
+2. Strong separation of concerns: UI components stay focused on rendering and interaction; business logic lives in page-level handlers or API modules.
+3. Reusable composition: shared layout and feed elements are reused across multiple pages.
+4. Real-time responsiveness: notifications and messaging are designed to update as soon as server events arrive.
+5. Security-aware state handling: protected routes and token-aware requests are treated as first-class concerns.
 
 ---
 
-## 🎯 Data Flow Summary
+## Current Status
 
-```
-User Input
-  │
-  ▼
-Component State / Form
-  │
-  ▼
-API Call (axios)
-  │
-  ├─ Interceptor attaches JWT token
-  └─ Interceptor handles 401 errors
-  │
-  ▼
-Backend Response
-  │
-  ▼
-Context Update (AuthContext, SocketContext)
-  │
-  ▼
-localStorage Sync
-  │
-  ▼
-Re-render Components (useAuth, useSocket hooks)
-  │
-  ▼
-UI Update
-```
+The frontend has reached a functional social application state covering the primary experience areas:
+
+- authentication
+- feed and post creation
+- profile viewing
+- follow/follower logic
+- messages
+- notification handling
+- explore browsing
+- responsive app shell
+
+The architecture is stable and ready for additional refinement, including deeper state abstraction and optional query-layer enhancements if the product scales further.
 
 ---
 
-## 🛠️ Future Architecture Improvements
+## Conclusion
 
-### Recommended Enhancements
+Zap’s frontend architecture is built around a clean React + TypeScript foundation, real-time social capabilities, and a modular feature layout. The structure supports rapid iteration while remaining easy to reason about as the product continues to grow. The current implementation successfully balances maintainability, user experience, and backend integration without over-engineering the stack.
 
-1. **Custom Hooks** (`src/hooks/`) - Create domain-specific hooks
-   - `usePost()` - Post operations
-   - `useUser()` - User operations
-   - `useMessages()` - Messaging operations
-   - `useFollow()` - Follow/unfollow logic
-
-2. **React Query Integration**
-   - Set up query client in main.tsx
-   - Replace direct API calls with useQuery/useMutation
-   - Implement optimistic updates
-
-3. **Error Boundary**
-   - Wrap route components with error boundary
-   - Graceful error handling
-
-4. **Logger Utility**
-   - Centralized logging for debugging
-   - Environment-based filtering
-
-5. **API Module Structure**
-   - Separate API calls into modules:
-     - `api/auth.ts`, `api/posts.ts`, `api/users.ts`, etc.
-
-6. **Component Slots Pattern**
-   - More flexible layout components
-   - Better composability
-
----
-
-## ✅ Current Implementation Status
-
-### ✅ Completed
-
-- Basic app setup (Vite, React 19, TypeScript)
-- Router configuration
-- 3-column responsive layout (desktop + mobile)
-- Context providers (Theme, Auth, Socket)
-- Axios interceptors & error handling
-- Type definitions for core entities
-- TailwindCSS theming (dark/light)
-- LocalStorage persistence
-
-### 🔄 In Progress
-
-- Feed page & post features
-- User profile pages
-- Messaging system
-
-### ⏳ To Do
-
-- Explore page features
-- Notifications system
-- Real-time Socket.io events
-- React Query integration
 - Custom hooks library
 - Error handling & validation
 - Component polish & animations

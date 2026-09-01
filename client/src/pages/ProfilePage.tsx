@@ -1,14 +1,16 @@
 import { useState, useEffect } from "react";
-import { useParams } from "react-router-dom";
+import { Link, useParams } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { Calendar, Edit3, Loader2 } from "lucide-react";
 import { motion } from "framer-motion";
 import { usersApi } from "../api/users";
-import type { User } from "../types";
+import { postsApi } from "../api/posts";
+import type { Post, User } from "../types";
+import EditProfileModal from "../components/EditProfileModal";
 
 export default function ProfilePage() {
   const { username } = useParams<{ username?: string }>();
-  const { user: currentUser } = useAuth();
+  const { user: currentUser, updateUser } = useAuth();
 
   const [activeTab, setActiveTab] = useState<"posts" | "replies" | "likes">(
     "posts",
@@ -18,6 +20,10 @@ export default function ProfilePage() {
   const [error, setError] = useState<string | null>(null);
   const [isFollowing, setIsFollowing] = useState<boolean>(false);
   const [followLoading, setFollowLoading] = useState<boolean>(false);
+  const [editModelOpen, setEditModalOpen] = useState<boolean>(false);
+  const [followersCount, setFollowersCount] = useState<number>(0);
+  const [followingCount, setFollowingCount] = useState<number>(0);
+  const [profilePosts, setProfilePosts] = useState<Post[]>([]);
 
   // Determine target username & ownership
   const targetUsername = username || currentUser?.username;
@@ -39,8 +45,39 @@ export default function ProfilePage() {
         const res = await usersApi.getProfile(targetUsername);
 
         if (isMounted) {
-          setProfile(res.data.user);
-          // Following status is tracked separately via toggleFollow endpoint
+          const targetUser = res.data.user;
+          setProfile(targetUser);
+
+          try {
+            const [followersRes, followingRes, feedRes] = await Promise.all([
+              usersApi.getFollowers(targetUser.id, 1, 1),
+              usersApi.getFollowing(targetUser.id, 1, 1),
+              postsApi.getFeed(1, 50),
+            ]);
+
+            setFollowersCount(
+              followersRes.data.pagination.totalFollowers ??
+                followersRes.data.followers?.length ??
+                0,
+            );
+            setFollowingCount(
+              followingRes.data.pagination.totalFollowing ??
+                followingRes.data.following?.length ??
+                followingRes.data.followers?.length ??
+                0,
+            );
+
+            const authorPosts = (feedRes.data.posts || []).filter(
+              (post) => post.author.id === targetUser.id,
+            );
+            setProfilePosts(authorPosts);
+          } catch (countErr) {
+            console.warn("Failed to load profile counts and posts:", countErr);
+            setFollowersCount(0);
+            setFollowingCount(0);
+            setProfilePosts([]);
+          }
+
           setIsFollowing(false);
         }
       } catch (err: any) {
@@ -73,20 +110,9 @@ export default function ProfilePage() {
       setIsFollowing(res.following);
 
       // Dynamically adjust follower count on toggle
-      setProfile((prev) => {
-        if (!prev || !prev._count) return prev;
-        const currentFollowers = prev._count.followers || 0;
-        return {
-          ...prev,
-          _count: {
-            posts: prev._count.posts || 0,
-            followers: res.following
-              ? currentFollowers + 1
-              : Math.max(0, currentFollowers - 1),
-            following: prev._count.following || 0,
-          },
-        };
-      });
+      setFollowersCount((prev) =>
+        res.following ? prev + 1 : Math.max(0, prev - 1),
+      );
     } catch (err) {
       console.error("Failed to toggle follow status:", err);
     } finally {
@@ -162,6 +188,7 @@ export default function ProfilePage() {
         <div className="flex justify-end mb-4">
           {isOwnProfile ? (
             <motion.button
+              onClick={() => setEditModalOpen(true)}
               whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.98 }}
               className="px-4 py-2 text-xs sm:text-sm font-bold rounded-xl border border-pure-border-light dark:border-pure-border-dark hover:bg-pure-hover-light dark:hover:bg-pure-hover-dark transition-colors flex items-center gap-2"
@@ -222,22 +249,32 @@ export default function ProfilePage() {
 
         {/* Followers / Following Counts */}
         <div className="flex items-center gap-6 mt-4 text-sm">
-          <div className="flex items-center gap-1.5">
-            <span className="font-extrabold">
-              {profile._count?.following || 0}
-            </span>
+          <Link
+            to={
+              profile.username === currentUser?.username
+                ? "/profile/following"
+                : `/profile/${profile.username}/following`
+            }
+            className="flex items-center gap-1.5 hover:underline"
+          >
+            <span className="font-extrabold">{followingCount}</span>
             <span className="text-pure-gray-light dark:text-pure-gray-dark font-medium">
               Following
             </span>
-          </div>
-          <div className="flex items-center gap-1.5">
-            <span className="font-extrabold">
-              {profile._count?.followers || 0}
-            </span>
+          </Link>
+          <Link
+            to={
+              profile.username === currentUser?.username
+                ? "/profile/followers"
+                : `/profile/${profile.username}/followers`
+            }
+            className="flex items-center gap-1.5 hover:underline"
+          >
+            <span className="font-extrabold">{followersCount}</span>
             <span className="text-pure-gray-light dark:text-pure-gray-dark font-medium">
               Followers
             </span>
-          </div>
+          </Link>
         </div>
       </div>
 
@@ -265,9 +302,43 @@ export default function ProfilePage() {
       </div>
 
       {/* Feed Content Placeholder */}
-      <div className="p-6 text-center text-sm text-pure-gray-light dark:text-pure-gray-dark font-medium">
-        No {activeTab} yet.
-      </div>
+      {profilePosts.length === 0 ? (
+        <div className="p-6 text-center text-sm text-pure-gray-light dark:text-pure-gray-dark font-medium">
+          No {activeTab} yet.
+        </div>
+      ) : (
+        <div className="divide-y divide-pure-border-light dark:divide-pure-border-dark">
+          {profilePosts.map((post) => (
+            <div key={post.id} className="p-4 space-y-2">
+              <div className="flex items-center gap-2 text-xs text-pure-gray-light dark:text-pure-gray-dark">
+                <span className="font-bold text-black dark:text-white">
+                  @{post.author.username}
+                </span>
+                <span>•</span>
+                <span>{new Date(post.createdAt).toLocaleDateString()}</span>
+              </div>
+              <p className="text-sm leading-relaxed text-black dark:text-white wrap-break-word">
+                {post.content}
+              </p>
+              <div className="flex items-center gap-4 text-xs text-pure-gray-light dark:text-pure-gray-dark">
+                <span>♥ {post._count?.likes || 0}</span>
+                <span>💬 {post._count?.comments || 0}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Edit Profile Modal */}
+      <EditProfileModal
+        isOpen={editModelOpen}
+        onClose={() => setEditModalOpen(false)}
+        profile={profile}
+        onUpdate={(updatedProfile) => {
+          setProfile(updatedProfile);
+          updateUser(updatedProfile);
+        }}
+      />
     </div>
   );
 }

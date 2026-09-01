@@ -13,6 +13,7 @@ import { motion } from "framer-motion";
 import { useAuth } from "../context/AuthContext";
 import { useSocket } from "../context/SocketContext";
 import { messagesApi } from "../api/messages";
+import { usersApi } from "../api/users";
 import type { Message } from "../types";
 
 interface ChatUser {
@@ -35,7 +36,6 @@ interface Conversation {
   lastMessage: string;
   updatedAt: string;
   unreadCount: number;
-  lastMessageTime?: string;
 }
 
 export default function MessagesPage() {
@@ -49,10 +49,10 @@ export default function MessagesPage() {
   const [inputText, setInputText] = useState("");
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [messages, setMessages] = useState<Record<string, MessageItem[]>>({});
-  const [conversationsLoading, setConversationsLoading] = useState(true);
+  const [conversationsLoading, setConversationsLoading] = useState(false);
   const [messagesLoading, setMessagesLoading] = useState(false);
+  const [searchError, setSearchError] = useState<string | null>(null);
 
-  // Auto-scroll to bottom of chat
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
@@ -61,29 +61,99 @@ export default function MessagesPage() {
     scrollToBottom();
   }, [messages, selectedConversation]);
 
-  // Initialize with empty conversations (In a real app, fetch recent conversations from backend)
   useEffect(() => {
-    // For now, start with empty conversations list
-    // In production, you'd have an endpoint like GET /api/v1/messages/conversations
-    setConversations([]);
-    setConversationsLoading(false);
-  }, []);
+    if (!socket) return;
 
-  // Load chat history when a conversation is selected
-  useEffect(() => {
-    if (!selectedConversation) return;
+    const handleReceiveMessage = (incoming: any) => {
+      if (!user) return;
 
-    const loadChatHistory = async () => {
+      const incomingMessage: MessageItem = {
+        id: incoming.id,
+        senderId: incoming.senderId,
+        content: incoming.content,
+        createdAt: new Date(incoming.createdAt).toLocaleTimeString([], {
+          hour: "2-digit",
+          minute: "2-digit",
+        }),
+      };
+
+      const conversationId =
+        incoming.senderId === user.id ? incoming.receiverId : incoming.senderId;
+
+      setMessages((prev) => ({
+        ...prev,
+        [conversationId]: [...(prev[conversationId] || []), incomingMessage],
+      }));
+
+      setConversations((prev) => {
+        const existing = prev.find(
+          (conversation) => conversation.id === conversationId,
+        );
+        if (existing) {
+          return prev.map((conversation) =>
+            conversation.id === conversationId
+              ? {
+                  ...conversation,
+                  lastMessage: incomingMessage.content,
+                  updatedAt: "Just now",
+                }
+              : conversation,
+          );
+        }
+
+        return prev;
+      });
+    };
+
+    socket.on("receive_message", handleReceiveMessage);
+    return () => {
+      socket.off("receive_message", handleReceiveMessage);
+    };
+  }, [user, socket]);
+
+  const startConversationWithUser = async (username: string) => {
+    const cleanUsername = username.trim().replace(/^@/, "");
+    if (!cleanUsername) {
+      setSearchError(null);
+      return;
+    }
+
+    try {
+      setConversationsLoading(true);
+      setSearchError(null);
+
+      const profileRes = await usersApi.getProfile(cleanUsername);
+      const participant = profileRes.data.user;
+      const conversationId = participant.id;
+
+      const conversation: Conversation = {
+        id: conversationId,
+        participant: {
+          id: participant.id,
+          username: participant.username,
+          avatarUrl: participant.avatarUrl,
+          isOnline: true,
+        },
+        lastMessage: "Start the conversation",
+        updatedAt: "Now",
+        unreadCount: 0,
+      };
+
+      setConversations((prev) => {
+        const exists = prev.some((item) => item.id === conversationId);
+        return exists ? prev : [conversation, ...prev];
+      });
+
+      setSelectedConversation(conversation);
+
       try {
         setMessagesLoading(true);
-        const res = await messagesApi.getChatHistory(
-          selectedConversation.participant.id,
-          1,
-          50,
-        );
+        const res = await messagesApi.getChatHistory(conversationId, 1, 50);
+        const rawMessages = Array.isArray(res.data.messages)
+          ? res.data.messages
+          : [];
 
-        // Convert API messages to MessageItem format
-        const formattedMessages: MessageItem[] = res.data.messages.map(
+        const formattedMessages: MessageItem[] = rawMessages.map(
           (msg: Message) => ({
             id: msg.id,
             senderId: msg.senderId,
@@ -97,110 +167,85 @@ export default function MessagesPage() {
 
         setMessages((prev) => ({
           ...prev,
-          [selectedConversation.id]: formattedMessages,
+          [conversationId]: formattedMessages,
         }));
-      } catch (err) {
-        console.error("Failed to load chat history:", err);
+      } catch (historyError) {
+        console.error("Failed to load chat history:", historyError);
+        setMessages((prev) => ({
+          ...prev,
+          [conversationId]: [],
+        }));
       } finally {
         setMessagesLoading(false);
       }
-    };
-
-    loadChatHistory();
-  }, [selectedConversation?.id]);
-
-  // Listen for real-time WebSocket messages
-  useEffect(() => {
-    if (!socket) return;
-
-    const handleReceiveMessage = (incomingMsg: {
-      conversationId: string;
-      message: MessageItem;
-    }) => {
-      setMessages((prev) => ({
-        ...prev,
-        [incomingMsg.conversationId]: [
-          ...(prev[incomingMsg.conversationId] || []),
-          incomingMsg.message,
-        ],
-      }));
-
-      // Update last message in thread list
-      setConversations((prev) =>
-        prev.map((c) =>
-          c.id === incomingMsg.conversationId
-            ? {
-                ...c,
-                lastMessage: incomingMsg.message.content,
-                updatedAt: "Just now",
-              }
-            : c,
-        ),
+    } catch (error: any) {
+      setSearchError(
+        error?.response?.data?.message ||
+          "Could not find a user with that username.",
       );
-    };
+    } finally {
+      setConversationsLoading(false);
+    }
+  };
 
-    socket.on("receive_message", handleReceiveMessage);
-    return () => {
-      socket.off("receive_message", handleReceiveMessage);
-    };
-  }, [socket]);
+  const handleSearch = async (e: React.FormEvent) => {
+    e.preventDefault();
+    await startConversationWithUser(searchQuery);
+  };
 
   const handleSendMessage = (e: React.FormEvent) => {
     e.preventDefault();
     if (!inputText.trim() || !selectedConversation || !user) return;
 
+    const content = inputText.trim();
     const newMessage: MessageItem = {
       id: Date.now().toString(),
       senderId: user.id,
-      content: inputText,
+      content,
       createdAt: new Date().toLocaleTimeString([], {
         hour: "2-digit",
         minute: "2-digit",
       }),
     };
 
-    const convId = selectedConversation.id;
+    const conversationId = selectedConversation.id;
 
-    // Update local message list
     setMessages((prev) => ({
       ...prev,
-      [convId]: [...(prev[convId] || []), newMessage],
+      [conversationId]: [...(prev[conversationId] || []), newMessage],
     }));
 
-    // Update thread preview
     setConversations((prev) =>
-      prev.map((c) =>
-        c.id === convId
-          ? { ...c, lastMessage: inputText, updatedAt: "Just now" }
-          : c,
+      prev.map((conversation) =>
+        conversation.id === conversationId
+          ? { ...conversation, lastMessage: content, updatedAt: "Just now" }
+          : conversation,
       ),
     );
 
-    // Emit socket event if connected
     if (socket && isConnected) {
       socket.emit("send_message", {
-        conversationId: convId,
-        receiverId: selectedConversation.participant.id,
-        message: newMessage,
+        receiverId: conversationId,
+        content,
       });
     }
 
     setInputText("");
   };
 
-  const filteredConversations = conversations.filter((c) =>
-    c.participant.username.toLowerCase().includes(searchQuery.toLowerCase()),
+  const filteredConversations = conversations.filter((conversation) =>
+    conversation.participant.username
+      .toLowerCase()
+      .includes(searchQuery.toLowerCase()),
   );
 
   return (
     <div className="w-full h-screen flex flex-col sm:flex-row overflow-hidden bg-white dark:bg-black">
-      {/* LEFT: Conversation Thread List */}
       <div
         className={`w-full sm:w-80 md:w-96 border-r border-pure-border-light dark:border-pure-border-dark flex flex-col h-full ${
           selectedConversation ? "hidden sm:flex" : "flex"
         }`}
       >
-        {/* Header */}
         <div className="p-4 border-b border-pure-border-light dark:border-pure-border-dark flex items-center justify-between">
           <h1 className="text-lg font-black tracking-tight">Messages</h1>
           {isConnected && (
@@ -211,8 +256,10 @@ export default function MessagesPage() {
           )}
         </div>
 
-        {/* Search */}
-        <div className="p-3 border-b border-pure-border-light dark:border-pure-border-dark">
+        <form
+          onSubmit={handleSearch}
+          className="p-3 border-b border-pure-border-light dark:border-pure-border-dark"
+        >
           <div className="relative flex items-center">
             <Search
               size={16}
@@ -222,13 +269,16 @@ export default function MessagesPage() {
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search direct messages..."
+              placeholder="Search username to chat..."
               className="w-full pl-9 pr-4 py-2 text-xs rounded-xl bg-pure-hover-light dark:bg-pure-hover-dark border border-pure-border-light dark:border-pure-border-dark focus:outline-none text-black dark:text-white placeholder:text-pure-gray-light dark:placeholder:text-pure-gray-dark"
             />
           </div>
-        </div>
+        </form>
 
-        {/* Conversations List */}
+        {searchError && (
+          <div className="px-4 py-2 text-xs text-red-500">{searchError}</div>
+        )}
+
         <div className="flex-1 overflow-y-auto divide-y divide-pure-border-light dark:divide-pure-border-dark">
           {conversationsLoading ? (
             <div className="p-8 flex items-center justify-center">
@@ -240,22 +290,13 @@ export default function MessagesPage() {
               return (
                 <button
                   key={conv.id}
-                  onClick={() => {
-                    setSelectedConversation(conv);
-                    // Clear unread count on select
-                    setConversations((prev) =>
-                      prev.map((c) =>
-                        c.id === conv.id ? { ...c, unreadCount: 0 } : c,
-                      ),
-                    );
-                  }}
+                  onClick={() => setSelectedConversation(conv)}
                   className={`w-full p-4 flex gap-3 items-center text-left transition-colors ${
                     isSelected
                       ? "bg-pure-hover-light dark:bg-pure-hover-dark"
                       : "hover:bg-pure-hover-light/40 dark:hover:bg-pure-hover-dark/40"
                   }`}
                 >
-                  {/* Avatar */}
                   <div className="relative shrink-0">
                     <div className="w-10 h-10 rounded-full bg-black dark:bg-white text-white dark:text-black flex items-center justify-center font-black text-sm uppercase">
                       {conv.participant.avatarUrl ? (
@@ -273,7 +314,6 @@ export default function MessagesPage() {
                     )}
                   </div>
 
-                  {/* Content */}
                   <div className="flex-1 min-w-0">
                     <div className="flex justify-between items-center mb-0.5">
                       <span className="text-sm font-extrabold truncate text-black dark:text-white">
@@ -288,7 +328,6 @@ export default function MessagesPage() {
                     </p>
                   </div>
 
-                  {/* Unread Badge */}
                   {conv.unreadCount > 0 && (
                     <span className="w-5 h-5 rounded-full bg-black text-white dark:bg-white dark:text-black font-extrabold text-[10px] flex items-center justify-center shrink-0">
                       {conv.unreadCount}
@@ -299,13 +338,12 @@ export default function MessagesPage() {
             })
           ) : (
             <div className="p-8 text-center text-xs font-medium text-pure-gray-light dark:text-pure-gray-dark">
-              No conversations found.
+              Search for a username to start a chat.
             </div>
           )}
         </div>
       </div>
 
-      {/* RIGHT: Selected Active Chat View */}
       <div
         className={`flex-1 flex flex-col h-full bg-white dark:bg-black ${
           !selectedConversation ? "hidden sm:flex" : "flex"
@@ -313,7 +351,6 @@ export default function MessagesPage() {
       >
         {selectedConversation ? (
           <>
-            {/* Active Header */}
             <div className="p-4 border-b border-pure-border-light dark:border-pure-border-dark flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <button
@@ -350,7 +387,6 @@ export default function MessagesPage() {
               </button>
             </div>
 
-            {/* Message Stream */}
             <div className="flex-1 overflow-y-auto p-4 space-y-3">
               {messagesLoading ? (
                 <div className="flex items-center justify-center h-full">
@@ -395,7 +431,6 @@ export default function MessagesPage() {
               <div ref={messagesEndRef} />
             </div>
 
-            {/* Input Bar */}
             <form
               onSubmit={handleSendMessage}
               className="p-3 border-t border-pure-border-light dark:border-pure-border-dark flex items-center gap-2"
@@ -444,7 +479,8 @@ export default function MessagesPage() {
               Select a message
             </h3>
             <p className="text-xs text-pure-gray-light dark:text-pure-gray-dark max-w-xs font-medium">
-              Choose from your existing conversations or start a new one.
+              Search a username to load an existing conversation or start a new
+              one.
             </p>
           </div>
         )}

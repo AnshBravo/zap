@@ -5,17 +5,18 @@ export interface User {
   bio?: string;
   avatarUrl?: string | null;
   createdAt?: string;
+  updatedAt?: string;
   _count?: {
-    posts: number;
-    followers: number;
-    following: number;
+    posts?: number;
+    followers?: number;
+    following?: number;
   };
 }
 
 export interface Post {
   id: string;
   content: string;
-  username: string;
+  username?: string;
   authorId: string;
   createdAt: string;
   updatedAt: string;
@@ -54,6 +55,18 @@ export interface Message {
     username: string;
     avatarUrl?: string | null;
   };
+}
+
+export interface NotificationItem {
+  id: string;
+  type: "LIKE" | "COMMENT" | "FOLLOW";
+  message: string;
+  postId?: string;
+  commentId?: string;
+  triggerBy?: { id: string; username: string; avatarUrl?: string | null };
+  followerId?: string;
+  createdAt?: string;
+  read?: boolean;
 }
 
 export interface AuthState {

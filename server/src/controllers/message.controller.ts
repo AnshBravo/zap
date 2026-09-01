@@ -51,10 +51,12 @@ export const getChatHistory = asyncHandler(
 
     const totalPages = Math.ceil(totalMessages / limit);
 
+    const orderedMessages = [...message].reverse();
+
     res.status(200).json({
       status: "success",
       data: {
-        messages: totalMessages,
+        messages: orderedMessages,
         pagination: {
           page,
           limit,

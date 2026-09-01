@@ -1,19 +1,36 @@
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { Image, Smile, Send, X } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAuth } from "../../context/AuthContext";
+import { postsApi } from "../../api/posts";
+import type { Post } from "../../types";
 
 interface PostComposerProps {
-  onPostCreated?: (newPost: any) => void;
+  onPostCreated?: (newPost: Post) => void;
+  autoFocus?: boolean;
 }
 
-export default function PostComposer({ onPostCreated }: PostComposerProps) {
+export default function PostComposer({
+  onPostCreated,
+  autoFocus = false,
+}: PostComposerProps) {
   const { user } = useAuth();
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const [content, setContent] = useState("");
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [mediaPreview, setMediaPreview] = useState<string | null>(null);
 
-  const MAX_CHARS = 260;
+  useEffect(() => {
+    if (autoFocus) {
+      textareaRef.current?.focus();
+      textareaRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "center",
+      });
+    }
+  }, [autoFocus]);
+
+  const MAX_CHARS = 200;
   const remainingChars = MAX_CHARS - content.length;
   const isOverLimit = remainingChars < 0;
 
@@ -35,28 +52,14 @@ export default function PostComposer({ onPostCreated }: PostComposerProps) {
 
     setIsSubmitting(true);
     try {
-      // API call to backend post endpoint will be wired here
-      const newZap = {
-        id: Date.now().toString(),
-        content,
-        author: {
-          username: user?.username || "user",
-          displayName: user?.username
-            ? user.username.charAt(0).toUpperCase() + user.username.slice(1)
-            : "User",
-        },
-        createdAt: "Just now",
-        likesCount: 0,
-        repliesCount: 0,
-        repostsCount: 0,
-      };
+      const response = await postsApi.createPost({ content: content.trim() });
+      const createdPost = response.data.post as Post;
 
       if (onPostCreated) {
-        onPostCreated(newZap);
+        onPostCreated(createdPost);
       }
 
       setContent("");
-
       setMediaPreview(null);
     } catch (err) {
       console.error("Failed to publish Zap:", err);
@@ -75,6 +78,7 @@ export default function PostComposer({ onPostCreated }: PostComposerProps) {
         {/* Input Area */}
         <form onSubmit={handleSubmit} className="flex-1 space-y-3">
           <textarea
+            ref={textareaRef}
             value={content}
             onChange={(e) => setContent(e.target.value)}
             placeholder="What's happening?"

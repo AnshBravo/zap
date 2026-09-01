@@ -9,6 +9,7 @@ import FeedPage from "./pages/FeedPage";
 import NotificationsPage from "./pages/NotificationsPage";
 import MessagesPage from "./pages/MessagesPage";
 import ExplorePage from "./pages/ExplorePage";
+import FollowListPage from "./pages/FollowListPage";
 // Placeholder pages (Should be replaced later in the process);
 
 // Temporary view components for layout verification
@@ -52,6 +53,16 @@ export default function App() {
           <Route path="/messages" element={<MessagesPage />} />
           <Route path="/profile" element={<ProfilePage />} />
           <Route path="/profile/:username" element={<ProfilePage />} />
+          <Route
+            path="/profile/:username/followers"
+            element={<FollowListPage />}
+          />
+          <Route
+            path="/profile/:username/following"
+            element={<FollowListPage />}
+          />
+          <Route path="/profile/followers" element={<FollowListPage />} />
+          <Route path="/profile/following" element={<FollowListPage />} />
         </Route>
 
         {/* Catch-all redirect */}

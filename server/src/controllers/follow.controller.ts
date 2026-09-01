@@ -72,9 +72,9 @@ export const toggleFollow = asyncHandler(
 
     try {
       const io = getIO();
-      io.to(`user: ${targetUserId}`).emit("notification", {
+      io.to(`user:${targetUserId}`).emit("notification", {
         type: "FOLLOW",
-        message: `A user started following you`,
+        message: `@${req.user?.username || "Someone"} started following you`,
         followerId: currentUserId,
       });
     } catch (err) {
@@ -168,7 +168,7 @@ export const getFollowing = asyncHandler(
         skip,
         take: limit,
         select: {
-          follower: {
+          following: {
             select: {
               id: true,
               username: true,
@@ -186,7 +186,7 @@ export const getFollowing = asyncHandler(
     res.status(200).json({
       status: "success",
       data: {
-        followers: following.map((f: any) => f.follower),
+        following: following.map((f: any) => f.following),
         pagination: {
           page,
           limit,

@@ -1,6 +1,14 @@
 import { useState } from "react";
-import { Heart, MessageSquare, Share, MoreHorizontal } from "lucide-react";
+import {
+  Heart,
+  MessageSquare,
+  Share,
+  MoreHorizontal,
+  Trash2,
+} from "lucide-react";
 import { motion } from "framer-motion";
+import { postsApi } from "../../api/posts";
+import { useAuth } from "../../context/AuthContext";
 
 export interface ZapPost {
   id: string;
@@ -23,15 +31,39 @@ export interface ZapPost {
 
 interface PostCardProps {
   post: ZapPost;
+  onDelete?: (postId: string) => void;
 }
 
-export default function PostCard({ post }: PostCardProps) {
+export default function PostCard({ post, onDelete }: PostCardProps) {
+  const { user } = useAuth();
   const [isLiked, setIsLiked] = useState(post.isLiked || false);
   const [likesCount, setLikesCount] = useState(post._count?.likes || 0);
+  const [isDeleting, setIsDeleting] = useState(false);
 
-  const handleLike = () => {
-    setIsLiked(!isLiked);
-    setLikesCount((prev) => (isLiked ? prev - 1 : prev + 1));
+  const handleLike = async () => {
+    try {
+      const response = await postsApi.toggleLike(post.id);
+      setIsLiked(response.liked);
+      setLikesCount((prev) =>
+        response.liked ? prev + 1 : Math.max(0, prev - 1),
+      );
+    } catch (err) {
+      console.error("Failed to toggle like:", err);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!onDelete || !user || user.id !== post.authorId) return;
+
+    try {
+      setIsDeleting(true);
+      await postsApi.deletePost(post.id);
+      onDelete(post.id);
+    } catch (err) {
+      console.error("Failed to delete post:", err);
+    } finally {
+      setIsDeleting(false);
+    }
   };
 
   return (
@@ -57,9 +89,21 @@ export default function PostCard({ post }: PostCardProps) {
                 {new Date(post.createdAt).toLocaleDateString()}
               </span>
             </div>
-            <button className="text-pure-gray-light dark:text-pure-gray-dark hover:text-black dark:hover:text-white transition-colors">
-              <MoreHorizontal size={16} />
-            </button>
+            <div className="flex items-center gap-2">
+              {user?.id === post.authorId && (
+                <button
+                  onClick={handleDelete}
+                  disabled={isDeleting}
+                  className="text-pure-gray-light dark:text-pure-gray-dark hover:text-red-500 transition-colors disabled:opacity-50"
+                  aria-label="Delete post"
+                >
+                  <Trash2 size={14} />
+                </button>
+              )}
+              <button className="text-pure-gray-light dark:text-pure-gray-dark hover:text-black dark:hover:text-white transition-colors">
+                <MoreHorizontal size={16} />
+              </button>
+            </div>
           </div>
 
           {/* Content */}

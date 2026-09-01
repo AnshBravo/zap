@@ -68,12 +68,17 @@ export const toggleLike = asyncHandler(
 
     if (post.authorId !== userId) {
       try {
+        const liker = await prisma.user.findUnique({
+          where: { id: userId },
+          select: { id: true, username: true, avatarUrl: true },
+        });
+
         const io = getIO();
         io.to(`user:${post.authorId}`).emit("notification", {
           type: "LIKE",
-          message: `Someone liked your post!`,
+          message: `@${liker?.username || "Someone"} liked your post!`,
           postId,
-          triggeredBy: userId,
+          triggeredBy: liker,
         });
       } catch (err) {
         console.error("Socket emit failed:", err);
