@@ -32,7 +32,7 @@ export const protect = asyncHandler(
       throw ApiError.notFound("User not found");
     }
 
-    req.user = { id: currentUser.id };
+    req.user = { id: currentUser.id, username: currentUser.username };
     next();
   },
 );
