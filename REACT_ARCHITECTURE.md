@@ -2,7 +2,7 @@
 
 ## Overview
 
-Zap is a social media platform built with React 19, TypeScript, and Vite. The frontend is structured as a modular single-page application with authenticated routes, a responsive shell layout, and real-time communication through Socket.IO. The architecture is designed to support social interactions such as posting, following, messaging, notifications, profile browsing, and content discovery while maintaining a clean separation between UI, application state, and API services.
+Zap is a React 19, TypeScript, and Vite single-page application with authenticated routes, a responsive shell, and Socket.IO communication.
 
 ---
 
@@ -49,15 +49,6 @@ React App
 - Socket.IO Client
 - Framer Motion
 - Lucide React
-
-### Why this stack
-
-- React and TypeScript provide a typed, scalable component model
-- Vite enables quick developer iteration and efficient production builds
-- React Router governs authenticated navigation and page rendering
-- Tailwind supports rapid UI development with a consistent design system
-- Axios centralizes backend communication and token handling
-- Socket.IO enables real-time messaging and notifications without full page refreshes
 
 ---
 
@@ -145,8 +136,6 @@ AppLayout
   └─ Right Sidebar / Widgets
 ```
 
-This design keeps feature pages focused on business logic while the shell handles structure, spacing, and navigation behavior.
-
 ---
 
 ## Routing Model
@@ -210,8 +199,6 @@ Responsibilities:
 - listen for connection/disconnection lifecycle events
 - handle user-specific room subscriptions and event-driven updates
 
-The app intentionally keeps these concerns decoupled so that page components can focus on feature interactions rather than transport lifecycle details.
-
 ---
 
 ## API Layer
@@ -224,6 +211,7 @@ The frontend uses a centralized Axios client in `src/api/axios.ts`.
 - JSON content type for all requests
 - automatic bearer token attachment for authenticated calls
 - centralized unauthorized handling to clear stale session data and force re-authentication
+- direct S3 uploads use the presigned URL returned by the posts API and send the file's exact MIME type
 
 ### Request flow
 
@@ -250,7 +238,23 @@ Features are separated by domain:
 - `users` for profile data, follow state, followers, following
 - `messages` for conversation history and message sending
 
-This keeps the app maintainable as the number of endpoints increases.
+### Media upload flow
+
+Media post creation is a two-stage operation:
+
+```text
+PostComposer selects a file
+  ↓
+postsApi.getUploadUrl(file.type)
+  ↓
+postsApi.uploadMedia(uploadUrl, file) via browser PUT to S3
+  ↓
+postsApi.createPost({ content, mediaUrl, mediaKey })
+  ↓
+PostCard renders the returned media URL
+```
+
+The server allowlists image and video MIME types, scopes generated keys to the authenticated user, and requires `mediaUrl` and `mediaKey` to match. The upload URL is short-lived, while the resulting media URL must be readable by the client through the configured S3 or CDN access policy.
 
 ---
 
@@ -280,13 +284,14 @@ This pattern improves perceived responsiveness and supports collaborative social
 The feed page loads posts from the backend, displays the composer for new posts, and supports content interactions such as:
 
 - creating a new post
+- selecting image or video media and uploading it directly to S3 before post creation
 - liking posts
 - adding comments
-- viewing author metadata and timestamps
+- viewing author metadata, timestamps, and attached media
 
 ### Explore
 
-The explore page is designed for discovery and content browsing. It includes list-based UI patterns for browsing posts and searching for users or content while preserving the same interaction model as the main feed.
+`ExplorePage` provides content discovery and user/content browsing.
 
 ### Messages
 
@@ -340,6 +345,8 @@ interface Post {
   id: string;
   authorId: string;
   content: string;
+  mediaUrl?: string | null;
+  mediaKey?: string | null;
   createdAt: string;
   updatedAt?: string;
   author?: User;
@@ -368,8 +375,6 @@ interface Message {
 }
 ```
 
-This shared structure makes it easier to compose UI elements consistently across pages and screens.
-
 ---
 
 ## Security and Session Handling
@@ -380,8 +385,6 @@ The frontend follows a session-first approach for secure access:
 - API requests attach the token via interceptor
 - expired or invalid auth triggers cleanup and redirect behavior
 - protected routes prevent access to restricted content before session hydration is complete
-
-This keeps the application resilient to stale or revoked session states while preserving a smooth UX.
 
 ---
 
@@ -403,50 +406,9 @@ npm run preview
 - `tailwind.config.ts` for theming and utility configuration
 - `eslint.config.js` for lint enforcement
 
-This setup is suitable for ongoing frontend delivery and iterative feature work without introducing excessive complexity.
-
 ---
 
-## Design Principles
-
-The current frontend architecture follows a few core principles:
-
-1. Feature-first organization: screens and modules are grouped by user-facing capability.
-2. Strong separation of concerns: UI components stay focused on rendering and interaction; business logic lives in page-level handlers or API modules.
-3. Reusable composition: shared layout and feed elements are reused across multiple pages.
-4. Real-time responsiveness: notifications and messaging are designed to update as soon as server events arrive.
-5. Security-aware state handling: protected routes and token-aware requests are treated as first-class concerns.
-
----
-
-## Current Status
-
-The frontend has reached a functional social application state covering the primary experience areas:
-
-- authentication
-- feed and post creation
-- profile viewing
-- follow/follower logic
-- messages
-- notification handling
-- explore browsing
-- responsive app shell
-
-The architecture is stable and ready for additional refinement, including deeper state abstraction and optional query-layer enhancements if the product scales further.
-
----
-
-## Conclusion
-
-Zap’s frontend architecture is built around a clean React + TypeScript foundation, real-time social capabilities, and a modular feature layout. The structure supports rapid iteration while remaining easy to reason about as the product continues to grow. The current implementation successfully balances maintainability, user experience, and backend integration without over-engineering the stack.
-
-- Custom hooks library
-- Error handling & validation
-- Component polish & animations
-
----
-
-## 🔗 Quick Reference
+## Quick Reference
 
 ### Useful Paths
 
@@ -478,5 +440,5 @@ toggleTheme();
 
 ---
 
-**Last Updated:** August 19, 2026
+**Last Updated:** September 6, 2026
 **Version:** React 19.2.8 | Vite 8.2.0 | TypeScript 6.0.2

@@ -1,6 +1,6 @@
 # Zap API Documentation
 
-This document describes the current backend contract for the Zap social application. It is based on the live Express server, Prisma schema, controllers, and Socket.IO implementation in this repository.
+Current backend contract for the Zap Express server, Prisma schema, controllers, and Socket.IO implementation.
 
 ## 1. Overview
 
@@ -238,7 +238,45 @@ Example response:
 
 ## 6. Post Endpoints
 
-### 6.1 Get feed
+### 6.1 Request a media upload URL
+
+- Method: `POST`
+- Route: `/api/v1/posts/upload-url`
+- Access: Private
+
+The client requests a short-lived S3 presigned `PUT` URL before creating a post. Supported media types are:
+
+- `image/jpeg`
+- `image/png`
+- `image/gif`
+- `image/webp`
+- `video/mp4`
+- `video/webm`
+
+Request body:
+
+```json
+{
+  "fileType": "image/png"
+}
+```
+
+Example response:
+
+```json
+{
+  "status": "success",
+  "data": {
+    "uploadUrl": "https://zap-app-media-store-2026.s3.us-east-1.amazonaws.com/...?...",
+    "mediaUrl": "https://zap-app-media-store-2026.s3.us-east-1.amazonaws.com/uploads/user_1/....png",
+    "mediaKey": "uploads/user_1/1734567890-ab12cd.png"
+  }
+}
+```
+
+The client must upload the file directly to `uploadUrl` with an HTTP `PUT` and the exact `Content-Type` used in the request. The URL expires after five minutes. The S3 bucket must allow browser `PUT` requests from the configured client origin.
+
+### 6.2 Get feed
 
 - Method: `GET`
 - Route: `/api/v1/posts`
@@ -290,7 +328,7 @@ Example response:
 }
 ```
 
-### 6.2 Create a post
+### 6.3 Create a post
 
 - Method: `POST`
 - Route: `/api/v1/posts`
@@ -300,7 +338,9 @@ Request body:
 
 ```json
 {
-  "content": "Hello everyone! This is my first post on Zap."
+  "content": "Hello everyone! This is my first post on Zap.",
+  "mediaUrl": "https://zap-app-media-store-2026.s3.us-east-1.amazonaws.com/uploads/user_1/1734567890-ab12cd.png",
+  "mediaKey": "uploads/user_1/1734567890-ab12cd.png"
 }
 ```
 
@@ -309,6 +349,9 @@ Validation rules:
 - `content` is required
 - must be a non-empty string
 - maximum length is 200 characters
+- `mediaUrl` and `mediaKey` are optional, but must be supplied together
+- `mediaKey` must belong to the authenticated user's `uploads/{userId}/` prefix
+- `mediaUrl` must correspond to the generated S3 URL for `mediaKey`
 
 Example response:
 
@@ -319,6 +362,8 @@ Example response:
     "post": {
       "id": "post_123",
       "content": "Hello everyone! This is my first post on Zap.",
+      "mediaUrl": "https://zap-app-media-store-2026.s3.us-east-1.amazonaws.com/uploads/user_1/1734567890-ab12cd.png",
+      "mediaKey": "uploads/user_1/1734567890-ab12cd.png",
       "authorId": "user_1",
       "createdAt": "2026-08-19T12:00:00.000Z",
       "updatedAt": "2026-08-19T12:00:00.000Z",
@@ -332,13 +377,13 @@ Example response:
 }
 ```
 
-### 6.3 Get a single post by ID
+### 6.4 Get a single post by ID
 
 - Method: `GET`
 - Route: `/api/v1/posts/:id`
 - Access: Public
 
-### 6.4 Delete a post
+### 6.5 Delete a post
 
 - Method: `DELETE`
 - Route: `/api/v1/posts/:id`
@@ -354,6 +399,8 @@ Example response:
   "message": "Post deleted successfully"
 }
 ```
+
+When a post has media, deletion removes the S3 object before deleting the database record. If S3 deletion fails, the post is not deleted.
 
 ---
 
@@ -659,44 +706,35 @@ The backend expects environment variables such as:
 - `DATABASE_URL`
 - `JWT_SECRET`
 - `CLIENT_URL`
-
-### Production readiness considerations
-
-For a production-grade deployment, the team should consider adding:
-
-- request validation middleware
-- rate limiting
-- request logging and monitoring
-- structured tracing
-- refresh-token flow
-- API throttling and abuse detection
-- stricter pagination and filtering standards
-- message API endpoints for sending and deleting direct messages
+- `AWS_REGION`
+- `AWS_S3_BUCKET_NAME`
+- AWS credentials supplied through the AWS SDK credential chain
 
 ---
 
 ## 13. Route Summary
 
-| Resource       | Method   | Path                                    | Access  |
-| -------------- | -------- | --------------------------------------- | ------- |
-| Health check   | `GET`    | `/health`                               | Public  |
-| Register       | `POST`   | `/api/v1/auth/register`                 | Public  |
-| Login          | `POST`   | `/api/v1/auth/login`                    | Public  |
-| Current user   | `GET`    | `/api/v1/auth/me`                       | Private |
-| Feed           | `GET`    | `/api/v1/posts`                         | Public  |
-| Create post    | `POST`   | `/api/v1/posts`                         | Private |
-| Get post       | `GET`    | `/api/v1/posts/:id`                     | Public  |
-| Delete post    | `DELETE` | `/api/v1/posts/:id`                     | Private |
-| Toggle like    | `POST`   | `/api/v1/posts/:postId/like`            | Private |
-| Add comment    | `POST`   | `/api/v1/posts/:postId/comments`        | Private |
-| Get comments   | `GET`    | `/api/v1/posts/:postId/comments`        | Public  |
-| Delete comment | `DELETE` | `/api/v1/comments/:commentId`           | Private |
-| Update profile | `PATCH`  | `/api/v1/users/me`                      | Private |
-| Toggle follow  | `POST`   | `/api/v1/users/:targetUserId`           | Private |
-| Followers      | `GET`    | `/api/v1/users/:targetUserId/followers` | Public  |
-| Following      | `GET`    | `/api/v1/users/:targetUserId/following` | Public  |
-| User profile   | `GET`    | `/api/v1/users/:username`               | Public  |
-| Chat history   | `GET`    | `/api/v1/messages/:otherUserId`         | Private |
+| Resource           | Method   | Path                                    | Access  |
+| ------------------ | -------- | --------------------------------------- | ------- |
+| Health check       | `GET`    | `/health`                               | Public  |
+| Register           | `POST`   | `/api/v1/auth/register`                 | Public  |
+| Login              | `POST`   | `/api/v1/auth/login`                    | Public  |
+| Current user       | `GET`    | `/api/v1/auth/me`                       | Private |
+| Feed               | `GET`    | `/api/v1/posts`                         | Public  |
+| Request upload URL | `POST`   | `/api/v1/posts/upload-url`              | Private |
+| Create post        | `POST`   | `/api/v1/posts`                         | Private |
+| Get post           | `GET`    | `/api/v1/posts/:id`                     | Public  |
+| Delete post        | `DELETE` | `/api/v1/posts/:id`                     | Private |
+| Toggle like        | `POST`   | `/api/v1/posts/:postId/like`            | Private |
+| Add comment        | `POST`   | `/api/v1/posts/:postId/comments`        | Private |
+| Get comments       | `GET`    | `/api/v1/posts/:postId/comments`        | Public  |
+| Delete comment     | `DELETE` | `/api/v1/comments/:commentId`           | Private |
+| Update profile     | `PATCH`  | `/api/v1/users/me`                      | Private |
+| Toggle follow      | `POST`   | `/api/v1/users/:targetUserId`           | Private |
+| Followers          | `GET`    | `/api/v1/users/:targetUserId/followers` | Public  |
+| Following          | `GET`    | `/api/v1/users/:targetUserId/following` | Public  |
+| User profile       | `GET`    | `/api/v1/users/:username`               | Public  |
+| Chat history       | `GET`    | `/api/v1/messages/:otherUserId`         | Private |
 
 ---
 
@@ -707,7 +745,7 @@ For a production-grade deployment, the team should consider adding:
 - Handle all API errors by checking the HTTP status code and message.
 - Apply pagination on all list endpoints to keep large datasets manageable.
 - Normalize all returned IDs and timestamps before rendering UI state.
+- For media posts, request an upload URL, upload directly to S3, then create the post with the returned `mediaUrl` and `mediaKey`.
+- Media URLs require readable S3 objects or a configured CDN/read-access strategy.
 
-This API is structured for a modern social product and is a solid foundation for further features such as richer messaging, media uploads, activity feeds, search, moderation, and analytics.
-
-Last updated: 2026-09-01
+Last updated: 2026-09-06
