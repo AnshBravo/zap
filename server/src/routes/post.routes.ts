@@ -4,6 +4,7 @@ import {
   getFeed,
   getPostById,
   deletePost,
+  getUploadUrl,
 } from "../controllers/post.controller.js";
 import {
   toggleLike,
@@ -13,6 +14,9 @@ import {
 import { protect } from "../middlewares/auth.middleware.js";
 
 const router = Router();
+
+// New: Route to get pre-signed URL
+router.post("/upload-url", protect, getUploadUrl);
 
 // Create & Feed
 router.get("/", getFeed);
