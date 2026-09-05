@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { Image, Smile, Send, X } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAuth } from "../../context/AuthContext";
-import { postsApi } from "../../api/posts";
+import { createPost, getUploadUrl, uploadMediaToS3 } from "../../api/posts";
 import type { Post } from "../../types";
 
 interface PostComposerProps {
@@ -17,9 +17,8 @@ export default function PostComposer({
   const { user } = useAuth();
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const [content, setContent] = useState("");
-  const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
-  const [uploadingMedia, setUploadingMedia] = useState<boolean>(false);
-  const [mediaPreview, setMediaPreview] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [mediaFile, setMediaFile] = useState<File | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -63,40 +62,39 @@ export default function PostComposer({
     }
 
     setError(null);
-    if (mediaPreview) URL.revokeObjectURL(mediaPreview);
+    if (previewUrl) URL.revokeObjectURL(previewUrl);
     const url = URL.createObjectURL(file);
-    setMediaPreview(url);
+    setPreviewUrl(url);
     setMediaFile(file);
     e.target.value = "";
   };
 
   const removeMedia = () => {
-    if (mediaPreview) URL.revokeObjectURL(mediaPreview);
-    setMediaPreview(null);
+    if (previewUrl) URL.revokeObjectURL(previewUrl);
+    setPreviewUrl(null);
     setMediaFile(null);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!content.trim() || isOverLimit || isSubmitting) return;
+    if (!content.trim() || isOverLimit || isLoading) return;
 
-    setIsSubmitting(true);
+    setIsLoading(true);
     setError(null);
 
     try {
       let mediaData: { mediaUrl: string; mediaKey: string } | undefined;
 
       if (mediaFile) {
-        setUploadingMedia(true);
-        const uploadResponse = await postsApi.getUploadUrl(mediaFile.type);
-        await postsApi.uploadMedia(uploadResponse.data.uploadUrl, mediaFile);
+        const uploadResponse = await getUploadUrl(mediaFile.type);
+        await uploadMediaToS3(uploadResponse.data.uploadUrl, mediaFile);
         mediaData = {
           mediaUrl: uploadResponse.data.mediaUrl,
           mediaKey: uploadResponse.data.mediaKey,
         };
       }
 
-      const response = await postsApi.createPost({
+      const response = await createPost({
         content: content.trim(),
         ...mediaData,
       });
@@ -107,8 +105,8 @@ export default function PostComposer({
       }
 
       setContent("");
-      if (mediaPreview) URL.revokeObjectURL(mediaPreview);
-      setMediaPreview(null);
+      if (previewUrl) URL.revokeObjectURL(previewUrl);
+      setPreviewUrl(null);
       setMediaFile(null);
     } catch (err: any) {
       console.error("Failed to publish Zap:", err);
@@ -117,8 +115,7 @@ export default function PostComposer({
           "Your Zap could not be published. Please try again.",
       );
     } finally {
-      setIsSubmitting(false);
-      setUploadingMedia(false);
+      setIsLoading(false);
     }
   };
   return (
@@ -139,6 +136,7 @@ export default function PostComposer({
           <textarea
             ref={textareaRef}
             value={content}
+            maxLength={MAX_CHARS}
             onChange={(e) => setContent(e.target.value)}
             placeholder="What's happening?"
             rows={3}
@@ -147,7 +145,7 @@ export default function PostComposer({
 
           {/* Media Preview Box */}
           <AnimatePresence>
-            {mediaPreview && (
+            {previewUrl && (
               <motion.div
                 initial={{ opacity: 0, scale: 0.95 }}
                 animate={{ opacity: 1, scale: 1 }}
@@ -156,13 +154,13 @@ export default function PostComposer({
               >
                 {mediaFile?.type.startsWith("video/") ? (
                   <video
-                    src={mediaPreview}
+                    src={previewUrl}
                     controls
                     className="w-full h-full object-cover"
                   />
                 ) : (
                   <img
-                    src={mediaPreview}
+                    src={previewUrl}
                     alt="Upload preview"
                     className="w-full h-full object-cover"
                   />
@@ -219,14 +217,13 @@ export default function PostComposer({
                 disabled={
                   !content.trim() ||
                   isOverLimit ||
-                  isSubmitting ||
-                  uploadingMedia
+                  isLoading
                 }
                 type="submit"
                 className="px-4 py-2 rounded-xl bg-black text-white dark:bg-white dark:text-black font-bold text-xs flex items-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed transition-opacity"
               >
                 <Send size={14} />
-                <span>{uploadingMedia ? "Uploading..." : "Zap"}</span>
+                <span>{isLoading ? "Publishing..." : "Zap"}</span>
               </motion.button>
             </div>
           </div>

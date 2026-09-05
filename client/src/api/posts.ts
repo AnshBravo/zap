@@ -42,6 +42,22 @@ export interface UploadUrlResponse {
   };
 }
 
+export const getUploadUrl = async (
+  fileType: string,
+): Promise<UploadUrlResponse> => {
+  const response = await api.post("/posts/upload-url", { fileType });
+  return response.data;
+};
+
+export const uploadMediaToS3 = async (
+  uploadUrl: string,
+  file: File,
+): Promise<void> => {
+  await axios.put(uploadUrl, file, {
+    headers: { "Content-Type": file.type },
+  });
+};
+
 export interface ToggleLikeResponse {
   status: string;
   message: string;
@@ -68,18 +84,18 @@ export interface GetCommentsResponse {
   };
 }
 
+export const createPost = async (
+  data: CreatePostPayload,
+): Promise<SinglePostResponse> => {
+  const response = await api.post("/posts", data);
+  return response.data;
+};
+
 export const postsApi = {
   // POST /api/v1/posts/upload-url
-  getUploadUrl: async (fileType: string): Promise<UploadUrlResponse> => {
-    const response = await api.post("/posts/upload-url", { fileType });
-    return response.data;
-  },
+  getUploadUrl,
 
-  uploadMedia: async (uploadUrl: string, file: File): Promise<void> => {
-    await axios.put(uploadUrl, file, {
-      headers: { "Content-Type": file.type },
-    });
-  },
+  uploadMedia: uploadMediaToS3,
 
   // GET /api/v1/posts?page=1&limit=10
   getFeed: async (page = 1, limit = 10): Promise<FeedResponse> => {
@@ -94,12 +110,7 @@ export const postsApi = {
   },
 
   // POST /api/v1/posts
-  createPost: async (
-    payload: CreatePostPayload,
-  ): Promise<SinglePostResponse> => {
-    const response = await api.post(`/posts`, payload);
-    return response.data;
-  },
+  createPost,
 
   // DELETE /api/v1/posts/:id
   deletePost: async (
