@@ -158,7 +158,6 @@ export default function PostCard({ post, onDelete }: PostCardProps) {
     }
   };
 
-
   const handleShare = async () => {
     const shareText = `@${post.author.username}: ${post.content}`;
     const shareUrl = window.location.href;

@@ -214,11 +214,7 @@ export default function PostComposer({
               <motion.button
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
-                disabled={
-                  !content.trim() ||
-                  isOverLimit ||
-                  isLoading
-                }
+                disabled={!content.trim() || isOverLimit || isLoading}
                 type="submit"
                 className="px-4 py-2 rounded-xl bg-black text-white dark:bg-white dark:text-black font-bold text-xs flex items-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed transition-opacity"
               >
