@@ -16,6 +16,8 @@ export interface User {
 export interface Post {
   id: string;
   content: string;
+  mediaUrl?: string | null;
+  mediaKey?: string | null;
   username?: string;
   authorId: string;
   createdAt: string;

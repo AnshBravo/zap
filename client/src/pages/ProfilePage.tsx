@@ -7,6 +7,7 @@ import { usersApi } from "../api/users";
 import { postsApi } from "../api/posts";
 import type { Post, User } from "../types";
 import EditProfileModal from "../components/EditProfileModal";
+import PostCard from "../components/feed/PostCard";
 
 export default function ProfilePage() {
   const { username } = useParams<{ username?: string }>();
@@ -24,6 +25,10 @@ export default function ProfilePage() {
   const [followersCount, setFollowersCount] = useState<number>(0);
   const [followingCount, setFollowingCount] = useState<number>(0);
   const [profilePosts, setProfilePosts] = useState<Post[]>([]);
+
+  const handleProfilePostDeleted = (postId: string) => {
+    setProfilePosts((prev) => prev.filter((post) => post.id !== postId));
+  };
 
   // Determine target username & ownership
   const targetUsername = username || currentUser?.username;
@@ -309,22 +314,11 @@ export default function ProfilePage() {
       ) : (
         <div className="divide-y divide-pure-border-light dark:divide-pure-border-dark">
           {profilePosts.map((post) => (
-            <div key={post.id} className="p-4 space-y-2">
-              <div className="flex items-center gap-2 text-xs text-pure-gray-light dark:text-pure-gray-dark">
-                <span className="font-bold text-black dark:text-white">
-                  @{post.author.username}
-                </span>
-                <span>•</span>
-                <span>{new Date(post.createdAt).toLocaleDateString()}</span>
-              </div>
-              <p className="text-sm leading-relaxed text-black dark:text-white wrap-break-word">
-                {post.content}
-              </p>
-              <div className="flex items-center gap-4 text-xs text-pure-gray-light dark:text-pure-gray-dark">
-                <span>♥ {post._count?.likes || 0}</span>
-                <span>💬 {post._count?.comments || 0}</span>
-              </div>
-            </div>
+            <PostCard
+              key={post.id}
+              post={post}
+              onDelete={handleProfilePostDeleted}
+            />
           ))}
         </div>
       )}

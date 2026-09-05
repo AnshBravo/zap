@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom"; // Import the routing functions
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { useAuth } from "./context/AuthContext";
 import type { ReactElement } from "react";
 import LoginPage from "./pages/LoginPage";
@@ -10,9 +10,6 @@ import NotificationsPage from "./pages/NotificationsPage";
 import MessagesPage from "./pages/MessagesPage";
 import ExplorePage from "./pages/ExplorePage";
 import FollowListPage from "./pages/FollowListPage";
-// Placeholder pages (Should be replaced later in the process);
-
-// Temporary view components for layout verification
 
 // Protected Route Guard
 function ProtectedRoutes({ children }: { children: ReactElement }) {

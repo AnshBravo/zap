@@ -1,3 +1,4 @@
+import axios from "axios";
 import api from "./axios";
 
 import { type Post, type Comment } from "../types";
@@ -28,6 +29,17 @@ export interface SinglePostResponse {
 
 export interface CreatePostPayload {
   content: string; // max 200 chars
+  mediaUrl?: string;
+  mediaKey?: string;
+}
+
+export interface UploadUrlResponse {
+  status: string;
+  data: {
+    uploadUrl: string;
+    mediaUrl: string;
+    mediaKey: string;
+  };
 }
 
 export interface ToggleLikeResponse {
@@ -57,6 +69,18 @@ export interface GetCommentsResponse {
 }
 
 export const postsApi = {
+  // POST /api/v1/posts/upload-url
+  getUploadUrl: async (fileType: string): Promise<UploadUrlResponse> => {
+    const response = await api.post("/posts/upload-url", { fileType });
+    return response.data;
+  },
+
+  uploadMedia: async (uploadUrl: string, file: File): Promise<void> => {
+    await axios.put(uploadUrl, file, {
+      headers: { "Content-Type": file.type },
+    });
+  },
+
   // GET /api/v1/posts?page=1&limit=10
   getFeed: async (page = 1, limit = 10): Promise<FeedResponse> => {
     const response = await api.get("/posts", { params: { page, limit } });

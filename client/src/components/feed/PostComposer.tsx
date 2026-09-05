@@ -18,7 +18,10 @@ export default function PostComposer({
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const [content, setContent] = useState("");
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
+  const [uploadingMedia, setUploadingMedia] = useState<boolean>(false);
   const [mediaPreview, setMediaPreview] = useState<string | null>(null);
+  const [mediaFile, setMediaFile] = useState<File | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (autoFocus) {
@@ -36,14 +39,41 @@ export default function PostComposer({
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
-      const url = URL.createObjectURL(file);
-      setMediaPreview(url);
+    if (!file) return;
+
+    const allowedTypes = [
+      "image/jpeg",
+      "image/png",
+      "image/gif",
+      "image/webp",
+      "video/mp4",
+      "video/webm",
+    ];
+
+    if (!allowedTypes.includes(file.type)) {
+      setError("Please upload a JPG, PNG, GIF, WebP, MP4, or WebM file.");
+      e.target.value = "";
+      return;
     }
+
+    if (file.size > 15 * 1024 * 1024) {
+      setError("Files must be 15MB or smaller.");
+      e.target.value = "";
+      return;
+    }
+
+    setError(null);
+    if (mediaPreview) URL.revokeObjectURL(mediaPreview);
+    const url = URL.createObjectURL(file);
+    setMediaPreview(url);
+    setMediaFile(file);
+    e.target.value = "";
   };
 
   const removeMedia = () => {
+    if (mediaPreview) URL.revokeObjectURL(mediaPreview);
     setMediaPreview(null);
+    setMediaFile(null);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -51,8 +81,25 @@ export default function PostComposer({
     if (!content.trim() || isOverLimit || isSubmitting) return;
 
     setIsSubmitting(true);
+    setError(null);
+
     try {
-      const response = await postsApi.createPost({ content: content.trim() });
+      let mediaData: { mediaUrl: string; mediaKey: string } | undefined;
+
+      if (mediaFile) {
+        setUploadingMedia(true);
+        const uploadResponse = await postsApi.getUploadUrl(mediaFile.type);
+        await postsApi.uploadMedia(uploadResponse.data.uploadUrl, mediaFile);
+        mediaData = {
+          mediaUrl: uploadResponse.data.mediaUrl,
+          mediaKey: uploadResponse.data.mediaKey,
+        };
+      }
+
+      const response = await postsApi.createPost({
+        content: content.trim(),
+        ...mediaData,
+      });
       const createdPost = response.data.post as Post;
 
       if (onPostCreated) {
@@ -60,11 +107,18 @@ export default function PostComposer({
       }
 
       setContent("");
+      if (mediaPreview) URL.revokeObjectURL(mediaPreview);
       setMediaPreview(null);
-    } catch (err) {
+      setMediaFile(null);
+    } catch (err: any) {
       console.error("Failed to publish Zap:", err);
+      setError(
+        err?.response?.data?.message ||
+          "Your Zap could not be published. Please try again.",
+      );
     } finally {
       setIsSubmitting(false);
+      setUploadingMedia(false);
     }
   };
   return (
@@ -77,6 +131,11 @@ export default function PostComposer({
 
         {/* Input Area */}
         <form onSubmit={handleSubmit} className="flex-1 space-y-3">
+          {error && (
+            <div className="rounded-xl border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-600 dark:text-red-400">
+              {error}
+            </div>
+          )}
           <textarea
             ref={textareaRef}
             value={content}
@@ -95,11 +154,19 @@ export default function PostComposer({
                 exit={{ opacity: 0, scale: 0.95 }}
                 className="relative rounded-2xl overflow-hidden border border-pure-border-light dark:border-pure-border-dark max-h-60 bg-pure-hover-light dark:bg-pure-hover-dark"
               >
-                <img
-                  src={mediaPreview}
-                  alt="Upload preview"
-                  className="w-full h-full object-cover"
-                />
+                {mediaFile?.type.startsWith("video/") ? (
+                  <video
+                    src={mediaPreview}
+                    controls
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <img
+                    src={mediaPreview}
+                    alt="Upload preview"
+                    className="w-full h-full object-cover"
+                  />
+                )}
                 <button
                   type="button"
                   onClick={removeMedia}
@@ -118,7 +185,7 @@ export default function PostComposer({
                 <Image size={18} />
                 <input
                   type="file"
-                  accept="image/*"
+                  accept="image/jpeg,image/png,image/gif,image/webp,video/mp4,video/webm"
                   onChange={handleImageChange}
                   className="hidden"
                 />
@@ -149,12 +216,17 @@ export default function PostComposer({
               <motion.button
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
-                disabled={!content.trim() || isOverLimit || isSubmitting}
+                disabled={
+                  !content.trim() ||
+                  isOverLimit ||
+                  isSubmitting ||
+                  uploadingMedia
+                }
                 type="submit"
                 className="px-4 py-2 rounded-xl bg-black text-white dark:bg-white dark:text-black font-bold text-xs flex items-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed transition-opacity"
               >
                 <Send size={14} />
-                <span>Zap</span>
+                <span>{uploadingMedia ? "Uploading..." : "Zap"}</span>
               </motion.button>
             </div>
           </div>

@@ -39,9 +39,12 @@ export default function FeedPage() {
     }
   };
 
-  // Called when a new Zap is successfully created in PostComposer
   const handlePostCreated = (newPost: Post) => {
     setPosts((prev) => [newPost, ...prev]);
+  };
+
+  const handlePostDeleted = (postId: string) => {
+    setPosts((prev) => prev.filter((post) => post.id !== postId));
   };
 
   return (
@@ -75,7 +78,7 @@ export default function FeedPage() {
       ) : (
         <div className="divide-y divide-pure-border-light dark:divide-pure-border-dark">
           {posts.map((post) => (
-            <PostCard key={post.id} post={post} />
+            <PostCard key={post.id} post={post} onDelete={handlePostDeleted} />
           ))}
         </div>
       )}

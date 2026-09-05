@@ -25,24 +25,46 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const [isLoading, setIsLoading] = useState<boolean>(true);
 
   useEffect(() => {
-    const initializeAuth = () => {
+    let isMounted = true;
+
+    const initializeAuth = async () => {
       try {
         const storedToken = localStorage.getItem("zap_token");
         const storedUser = localStorage.getItem("zap_user");
 
         if (storedToken && storedUser) {
-          setUser(JSON.parse(storedUser));
+          const parsedUser = JSON.parse(storedUser) as User;
+          setUser(parsedUser);
           setToken(storedToken);
+
+          const response = await api.get("/auth/me");
+          const freshUser = response.data?.data?.user as User;
+
+          if (isMounted) {
+            setUser(freshUser);
+            localStorage.setItem("zap_user", JSON.stringify(freshUser));
+          }
         }
       } catch (error) {
         console.error("failed to restore auth session:", error);
-        localStorage.removeItem("zap_user");
-        localStorage.removeItem("zap_token");
+        if (isMounted) {
+          setUser(null);
+          setToken(null);
+          localStorage.removeItem("zap_user");
+          localStorage.removeItem("zap_token");
+        }
       } finally {
-        setIsLoading(false);
+        if (isMounted) {
+          setIsLoading(false);
+        }
       }
     };
+
     initializeAuth();
+
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   const login = async (email: string, password: string) => {
