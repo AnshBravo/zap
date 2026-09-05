@@ -64,10 +64,6 @@ export interface ToggleLikeResponse {
   liked: boolean;
 }
 
-export interface AddCommentPayload {
-  content: string;
-}
-
 export interface AddCommentResponse {
   status: string;
   message: string;
@@ -83,6 +79,39 @@ export interface GetCommentsResponse {
     pagination: PaginationMeta;
   };
 }
+
+export const toggleLike = async (
+  postId: string,
+): Promise<ToggleLikeResponse> => {
+  const response = await api.post(`/posts/${postId}/like`);
+  return response.data;
+};
+
+export const getComments = async (
+  postId: string,
+  page = 1,
+  limit = 10,
+): Promise<GetCommentsResponse> => {
+  const response = await api.get(`/posts/${postId}/comments`, {
+    params: { page, limit },
+  });
+  return response.data;
+};
+
+export const addComment = async (
+  postId: string,
+  content: string,
+): Promise<AddCommentResponse> => {
+  const response = await api.post(`/posts/${postId}/comments`, { content });
+  return response.data;
+};
+
+export const deleteComment = async (
+  commentId: string,
+): Promise<{ status: string; message: string }> => {
+  const response = await api.delete(`/comments/${commentId}`);
+  return response.data;
+};
 
 export const createPost = async (
   data: CreatePostPayload,
@@ -121,37 +150,14 @@ export const postsApi = {
   },
 
   // POST /api/v1/posts/:postId/like
-  toggleLike: async (postId: string): Promise<ToggleLikeResponse> => {
-    const response = await api.post(`/posts/${postId}/like`);
-    return response.data;
-  },
+  toggleLike,
 
   // POST /api/v1/posts/:postId/comments
-  addComment: async (
-    postId: string,
-    payload: AddCommentPayload,
-  ): Promise<AddCommentResponse> => {
-    const response = await api.post(`/posts/${postId}/comments`, payload);
-    return response.data;
-  },
+  addComment,
 
   // GET /api/v1/posts/:postId/comments?page=1&limit=10
-  getComments: async (
-    postId: string,
-    page = 1,
-    limit = 10,
-  ): Promise<GetCommentsResponse> => {
-    const response = await api.get(`/posts/${postId}/comments`, {
-      params: { page, limit },
-    });
-    return response.data;
-  },
+  getComments,
 
   // DELETE /api/v1/comments/:commentId
-  deleteComment: async (
-    commentId: string,
-  ): Promise<{ status: string; message: string }> => {
-    const response = await api.delete(`/comments/${commentId}`);
-    return response.data;
-  },
+  deleteComment,
 };

@@ -9,7 +9,13 @@ import {
   Send,
 } from "lucide-react";
 import { motion } from "framer-motion";
-import { postsApi } from "../../api/posts";
+import {
+  addComment,
+  deleteComment,
+  getComments,
+  postsApi,
+  toggleLike,
+} from "../../api/posts";
 import { useAuth } from "../../context/AuthContext";
 import type { Comment } from "../../types";
 
@@ -61,7 +67,7 @@ export default function PostCard({ post, onDelete }: PostCardProps) {
     const fetchComments = async () => {
       try {
         setCommentsLoading(true);
-        const response = await postsApi.getComments(post.id, 1, 10);
+        const response = await getComments(post.id, 1, 10);
         setComments(response.data.comments || []);
       } catch (error) {
         console.error("Failed to load comments:", error);
@@ -75,14 +81,31 @@ export default function PostCard({ post, onDelete }: PostCardProps) {
   }, [commentsOpen, post.id]);
 
   const handleLike = async () => {
+    const previousIsLiked = isLiked;
+    const previousLikesCount = likesCount;
+    const nextIsLiked = !previousIsLiked;
+
+    setIsLiked(nextIsLiked);
+    setLikesCount(
+      nextIsLiked
+        ? previousLikesCount + 1
+        : Math.max(0, previousLikesCount - 1),
+    );
+
     try {
-      const response = await postsApi.toggleLike(post.id);
+      const response = await toggleLike(post.id);
       setIsLiked(response.liked);
-      setLikesCount((prev) =>
-        response.liked ? prev + 1 : Math.max(0, prev - 1),
-      );
+      if (response.liked !== nextIsLiked) {
+        setLikesCount(
+          response.liked
+            ? previousLikesCount + 1
+            : Math.max(0, previousLikesCount - 1),
+        );
+      }
     } catch (err) {
       console.error("Failed to toggle like:", err);
+      setIsLiked(previousIsLiked);
+      setLikesCount(previousLikesCount);
     }
   };
 
@@ -100,6 +123,16 @@ export default function PostCard({ post, onDelete }: PostCardProps) {
     }
   };
 
+  const handleDeleteComment = async (commentId: string) => {
+    try {
+      await deleteComment(commentId);
+      setComments((prev) => prev.filter((item) => item.id !== commentId));
+      setCommentsCount((prev) => Math.max(0, prev - 1));
+    } catch (error) {
+      console.error("Failed to delete comment:", error);
+    }
+  };
+
   const handleCommentSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
     if (!commentDraft.trim() || commentSubmitting) return;
@@ -108,9 +141,7 @@ export default function PostCard({ post, onDelete }: PostCardProps) {
       setCommentSubmitting(true);
       setCommentError(null);
 
-      const response = await postsApi.addComment(post.id, {
-        content: commentDraft.trim(),
-      });
+      const response = await addComment(post.id, commentDraft.trim());
 
       const createdComment = response.data.comment;
       setComments((prev) => [createdComment, ...prev]);
@@ -127,15 +158,6 @@ export default function PostCard({ post, onDelete }: PostCardProps) {
     }
   };
 
-  const handleDeleteComment = async (commentId: string) => {
-    try {
-      await postsApi.deleteComment(commentId);
-      setComments((prev) => prev.filter((item) => item.id !== commentId));
-      setCommentsCount((prev) => Math.max(0, prev - 1));
-    } catch (error) {
-      console.error("Failed to delete comment:", error);
-    }
-  };
 
   const handleShare = async () => {
     const shareText = `@${post.author.username}: ${post.content}`;
