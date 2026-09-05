@@ -149,11 +149,7 @@ export default function MessagesPage() {
       try {
         setMessagesLoading(true);
         const res = await messagesApi.getChatHistory(conversationId, 1, 50);
-        const rawMessages = Array.isArray(res.data.messages)
-          ? res.data.messages
-          : [];
-
-        const formattedMessages: MessageItem[] = rawMessages.map(
+        const formattedMessages: MessageItem[] = res.data.messages.map(
           (msg: Message) => ({
             id: msg.id,
             senderId: msg.senderId,

@@ -32,7 +32,7 @@ export const getChatHistory = asyncHandler(
         },
         skip,
         take: limit,
-        orderBy: { createdAt: "desc" },
+        orderBy: { createdAt: "asc" },
         include: {
           sender: {
             select: { id: true, username: true, avatarUrl: true },
@@ -51,12 +51,10 @@ export const getChatHistory = asyncHandler(
 
     const totalPages = Math.ceil(totalMessages / limit);
 
-    const orderedMessages = [...message].reverse();
-
     res.status(200).json({
       status: "success",
       data: {
-        messages: orderedMessages,
+        messages: message,
         pagination: {
           page,
           limit,
