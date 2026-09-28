@@ -1,85 +1,139 @@
 import { useState, useEffect } from "react";
 import { Loader2 } from "lucide-react";
-import { useLocation } from "react-router-dom";
-import PostComposer from "../components/feed/PostComposer";
 import PostCard from "../components/feed/PostCard";
 import { postsApi } from "../api/posts";
+import { getApiErrorMessage } from "../api/errors";
 import { type Post } from "../types";
+import type { PaginationMeta } from "../api/posts";
 
 export default function FeedPage() {
-  const location = useLocation();
   const [posts, setPosts] = useState<Post[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [pagination, setPagination] = useState<PaginationMeta | null>(null);
 
   useEffect(() => {
-    fetchFeed();
+    let cancelled = false;
+
+    postsApi
+      .getFeed(1, 20)
+      .then((res) => {
+        if (!cancelled) {
+          setPosts(res.data.posts);
+          setPagination(res.data.pagination);
+        }
+      })
+      .catch((err: unknown) => {
+        console.error("Failed to fetch feed:", err);
+        if (!cancelled) {
+          setError(
+            getApiErrorMessage(
+              err,
+              "Failed to load Zaps. Please try again later.",
+            ),
+          );
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
-  const focusComposer = Boolean(
-    (location.state as { focusComposer?: boolean } | null)?.focusComposer,
-  );
-
-  useEffect(() => {
-    if (!focusComposer) return;
-    window.history.replaceState({}, "");
-  }, [focusComposer]);
-
-  const fetchFeed = async () => {
+  const loadMore = async () => {
+    if (!pagination?.hasNextPage || loadingMore) return;
     try {
-      setLoading(true);
+      setLoadingMore(true);
+      const response = await postsApi.getFeed(pagination.page + 1, 20);
+      setPosts((current) => [...current, ...response.data.posts]);
+      setPagination(response.data.pagination);
+    } catch (requestError: unknown) {
+      setError(
+        getApiErrorMessage(requestError, "More posts could not be loaded."),
+      );
+    } finally {
+      setLoadingMore(false);
+    }
+  };
+
+  const retry = async () => {
+    try {
       setError(null);
-      const res = await postsApi.getFeed(1, 20);
-      setPosts(res.data.posts);
-    } catch (err: any) {
-      console.error("Failed to fetch feed:", err);
-      setError("Failed to load Zaps. Please try again later.");
+      setLoading(true);
+      const response = await postsApi.getFeed(1, 20);
+      setPosts(response.data.posts);
+      setPagination(response.data.pagination);
+    } catch (requestError: unknown) {
+      setError(getApiErrorMessage(requestError, "Feed could not be loaded."));
     } finally {
       setLoading(false);
     }
   };
 
-  const handlePostCreated = (newPost: Post) => {
-    setPosts((prev) => [newPost, ...prev]);
-  };
+  useEffect(() => {
+    const handlePostCreated = (event: Event) => {
+      const post = (event as CustomEvent<Post>).detail;
+      if (post) setPosts((current) => [post, ...current]);
+    };
+    window.addEventListener("zap:post-created", handlePostCreated);
+    return () =>
+      window.removeEventListener("zap:post-created", handlePostCreated);
+  }, []);
 
   const handlePostDeleted = (postId: string) => {
     setPosts((prev) => prev.filter((post) => post.id !== postId));
   };
 
   return (
-    <div className="w-full min-h-screen">
+    <div className="min-h-screen w-full">
       {/* Sticky Top Header */}
-      <div className="sticky top-0 z-10 backdrop-blur-md bg-white/80 dark:bg-black/80 border-b border-pure-border-light dark:border-pure-border-dark px-6 py-3">
-        <h1 className="text-lg font-black tracking-tight">Home</h1>
+      <div className="sticky top-0 z-10 border-b border-pure-border-light bg-white/90 px-6 py-4 backdrop-blur dark:border-pure-border-dark dark:bg-black/90">
+        <h1 className="text-lg font-bold tracking-tight">Home</h1>
       </div>
-
-      {/* Post Creation Area */}
-      <PostComposer
-        onPostCreated={handlePostCreated}
-        autoFocus={focusComposer}
-      />
 
       {/* Feed List */}
       {loading ? (
-        <div className="p-12 flex items-center justify-center gap-2 text-xs text-pure-gray-light dark:text-pure-gray-dark">
-          <Loader2
-            className="animate-spin text-black dark:text-white"
-            size={18}
-          />
-          <span>Loading Zaps...</span>
+        <div className="flex items-center justify-center gap-2 py-12 text-xs text-pure-gray-light dark:text-pure-gray-dark">
+          <Loader2 size={16} className="animate-spin" />
+          <span>Loading posts</span>
         </div>
       ) : error ? (
-        <div className="p-8 text-center text-xs text-red-500">{error}</div>
+        <div className="p-8 text-center text-sm text-red-600">
+          <p>{error}</p>
+          <button
+            type="button"
+            onClick={() => void retry()}
+            className="mt-3 border border-current px-4 py-2 font-semibold"
+          >
+            Try again
+          </button>
+        </div>
       ) : posts.length === 0 ? (
         <div className="p-12 text-center text-xs text-pure-gray-light dark:text-pure-gray-dark font-medium">
           No Zaps yet. Be the first to share something!
         </div>
       ) : (
-        <div className="divide-y divide-pure-border-light dark:divide-pure-border-dark">
+        <div className="mx-auto max-w-157.5 divide-y divide-pure-border-light dark:divide-pure-border-dark">
           {posts.map((post) => (
             <PostCard key={post.id} post={post} onDelete={handlePostDeleted} />
           ))}
+          {pagination?.hasNextPage && (
+            <div className="py-6 text-center">
+              <button
+                type="button"
+                disabled={loadingMore}
+                onClick={() => void loadMore()}
+                className="inline-flex items-center gap-2 px-4 py-2 text-xs font-semibold disabled:opacity-50"
+              >
+                {loadingMore && <Loader2 size={14} className="animate-spin" />}
+                {loadingMore ? "Loading" : "Load more"}
+              </button>
+            </div>
+          )}
         </div>
       )}
     </div>

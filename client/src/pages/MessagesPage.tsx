@@ -2,18 +2,17 @@ import { useState, useEffect, useRef } from "react";
 import {
   Search,
   Send,
-  Image,
-  Smile,
   ArrowLeft,
   MoreVertical,
   CheckCheck,
   Loader2,
 } from "lucide-react";
 import { motion } from "framer-motion";
-import { useAuth } from "../context/AuthContext";
-import { useSocket } from "../context/SocketContext";
+import { useAuth } from "../context/useAuth";
+import { useSocket } from "../context/useSocket";
 import { messagesApi } from "../api/messages";
 import { usersApi } from "../api/users";
+import { getApiErrorMessage } from "../api/errors";
 import type { Message } from "../types";
 
 interface ChatUser {
@@ -52,6 +51,7 @@ export default function MessagesPage() {
   const [conversationsLoading, setConversationsLoading] = useState(false);
   const [messagesLoading, setMessagesLoading] = useState(false);
   const [searchError, setSearchError] = useState<string | null>(null);
+  const [sendError, setSendError] = useState<string | null>(null);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -64,7 +64,7 @@ export default function MessagesPage() {
   useEffect(() => {
     if (!socket) return;
 
-    const handleReceiveMessage = (incoming: any) => {
+    const appendMessage = (incoming: Message) => {
       if (!user) return;
 
       const incomingMessage: MessageItem = {
@@ -82,7 +82,11 @@ export default function MessagesPage() {
 
       setMessages((prev) => ({
         ...prev,
-        [conversationId]: [...(prev[conversationId] || []), incomingMessage],
+        [conversationId]: (prev[conversationId] || []).some(
+          (item) => item.id === incoming.id,
+        )
+          ? prev[conversationId]
+          : [...(prev[conversationId] || []), incomingMessage],
       }));
 
       setConversations((prev) => {
@@ -105,9 +109,17 @@ export default function MessagesPage() {
       });
     };
 
-    socket.on("receive_message", handleReceiveMessage);
+    const handleSocketError = (payload: { message?: string }) => {
+      setSendError(payload.message || "Message could not be delivered.");
+    };
+
+    socket.on("receive_message", appendMessage);
+    socket.on("message_sent", appendMessage);
+    socket.on("error", handleSocketError);
     return () => {
-      socket.off("receive_message", handleReceiveMessage);
+      socket.off("receive_message", appendMessage);
+      socket.off("message_sent", appendMessage);
+      socket.off("error", handleSocketError);
     };
   }, [user, socket]);
 
@@ -174,10 +186,9 @@ export default function MessagesPage() {
       } finally {
         setMessagesLoading(false);
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       setSearchError(
-        error?.response?.data?.message ||
-          "Could not find a user with that username.",
+        getApiErrorMessage(error, "Could not find a user with that username."),
       );
     } finally {
       setConversationsLoading(false);
@@ -193,39 +204,15 @@ export default function MessagesPage() {
     e.preventDefault();
     if (!inputText.trim() || !selectedConversation || !user) return;
 
-    const content = inputText.trim();
-    const newMessage: MessageItem = {
-      id: Date.now().toString(),
-      senderId: user.id,
-      content,
-      createdAt: new Date().toLocaleTimeString([], {
-        hour: "2-digit",
-        minute: "2-digit",
-      }),
-    };
-
-    const conversationId = selectedConversation.id;
-
-    setMessages((prev) => ({
-      ...prev,
-      [conversationId]: [...(prev[conversationId] || []), newMessage],
-    }));
-
-    setConversations((prev) =>
-      prev.map((conversation) =>
-        conversation.id === conversationId
-          ? { ...conversation, lastMessage: content, updatedAt: "Just now" }
-          : conversation,
-      ),
-    );
-
-    if (socket && isConnected) {
-      socket.emit("send_message", {
-        receiverId: conversationId,
-        content,
-      });
+    if (!socket || !isConnected) {
+      setSendError("You are offline. Reconnect before sending a message.");
+      return;
     }
 
+    const content = inputText.trim();
+    const conversationId = selectedConversation.id;
+    setSendError(null);
+    socket.emit("send_message", { receiverId: conversationId, content });
     setInputText("");
   };
 
@@ -431,19 +418,6 @@ export default function MessagesPage() {
               onSubmit={handleSendMessage}
               className="p-3 border-t border-pure-border-light dark:border-pure-border-dark flex items-center gap-2"
             >
-              <button
-                type="button"
-                className="p-2 rounded-xl hover:bg-pure-hover-light dark:hover:bg-pure-hover-dark text-pure-gray-light dark:text-pure-gray-dark"
-              >
-                <Image size={18} />
-              </button>
-              <button
-                type="button"
-                className="p-2 rounded-xl hover:bg-pure-hover-light dark:hover:bg-pure-hover-dark text-pure-gray-light dark:text-pure-gray-dark"
-              >
-                <Smile size={18} />
-              </button>
-
               <input
                 type="text"
                 value={inputText}
@@ -451,6 +425,15 @@ export default function MessagesPage() {
                 placeholder="Start a new message..."
                 className="flex-1 py-2 px-4 text-xs sm:text-sm rounded-xl bg-pure-hover-light dark:bg-pure-hover-dark border border-pure-border-light dark:border-pure-border-dark focus:outline-none text-black dark:text-white placeholder:text-pure-gray-light dark:placeholder:text-pure-gray-dark"
               />
+
+              {sendError && (
+                <span
+                  role="alert"
+                  className="absolute bottom-16 left-4 text-xs text-red-600"
+                >
+                  {sendError}
+                </span>
+              )}
 
               <motion.button
                 whileHover={{ scale: 1.05 }}

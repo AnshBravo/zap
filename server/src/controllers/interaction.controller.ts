@@ -299,7 +299,10 @@ export const getBookmarkedPosts = asyncHandler(
     if (!userId) throw ApiError.unauthorized("Authentication required");
 
     const page = Math.max(1, parseInt(req.query.page as string) || 1);
-    const limit = Math.min(50, Math.max(1, parseInt(req.query.limit as string) || 20));
+    const limit = Math.min(
+      50,
+      Math.max(1, parseInt(req.query.limit as string) || 20),
+    );
     const where = { userId };
     const [bookmarks, totalPosts] = await Promise.all([
       prisma.bookmark.findMany({
@@ -330,7 +333,13 @@ export const getBookmarkedPosts = asyncHandler(
           isBookmarked: true,
           likes: undefined,
         })),
-        pagination: { page, limit, totalPosts, totalPages, hasNextPage: page < totalPages },
+        pagination: {
+          page,
+          limit,
+          totalPosts,
+          totalPages,
+          hasNextPage: page < totalPages,
+        },
       },
     });
   },

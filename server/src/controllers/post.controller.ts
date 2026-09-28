@@ -172,10 +172,15 @@ export const searchPosts = asyncHandler(
   async (req: Request, res: Response): Promise<void> => {
     const query = typeof req.query.q === "string" ? req.query.q.trim() : "";
     const page = Math.max(1, parseInt(req.query.page as string) || 1);
-    const limit = Math.min(50, Math.max(1, parseInt(req.query.limit as string) || 20));
+    const limit = Math.min(
+      50,
+      Math.max(1, parseInt(req.query.limit as string) || 20),
+    );
     if (!query) throw ApiError.badRequest("Search query is required.");
 
-    const where = { content: { contains: query, mode: "insensitive" as const } };
+    const where = {
+      content: { contains: query, mode: "insensitive" as const },
+    };
     const [posts, totalPosts] = await Promise.all([
       prisma.post.findMany({
         where,
@@ -186,8 +191,16 @@ export const searchPosts = asyncHandler(
           author: { select: { id: true, username: true, avatarUrl: true } },
           _count: { select: { likes: true, comments: true } },
           ...(req.user?.id && {
-            likes: { where: { userId: req.user.id }, select: { id: true }, take: 1 },
-            bookmarks: { where: { userId: req.user.id }, select: { userId: true }, take: 1 },
+            likes: {
+              where: { userId: req.user.id },
+              select: { id: true },
+              take: 1,
+            },
+            bookmarks: {
+              where: { userId: req.user.id },
+              select: { userId: true },
+              take: 1,
+            },
           }),
         },
       }),
@@ -205,7 +218,13 @@ export const searchPosts = asyncHandler(
           likes: undefined,
           bookmarks: undefined,
         })),
-        pagination: { page, limit, totalPosts, totalPages, hasNextPage: page < totalPages },
+        pagination: {
+          page,
+          limit,
+          totalPosts,
+          totalPages,
+          hasNextPage: page < totalPages,
+        },
       },
     });
   },

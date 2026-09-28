@@ -69,7 +69,9 @@ export const searchUsers = asyncHandler(
     if (!query) throw ApiError.badRequest("Search query is required.");
 
     const users = await prisma.user.findMany({
-      where: { username: { contains: query.replace(/^@/, ""), mode: "insensitive" } },
+      where: {
+        username: { contains: query.replace(/^@/, ""), mode: "insensitive" },
+      },
       take: 20,
       orderBy: { username: "asc" },
       select: { id: true, username: true, avatarUrl: true, bio: true },
@@ -84,7 +86,9 @@ export const searchUsers = asyncHandler(
           select: { followingId: true },
         })
       : [];
-    const followingIds = new Set(following.map((relation) => relation.followingId));
+    const followingIds = new Set(
+      following.map((relation) => relation.followingId),
+    );
 
     res.status(200).json({
       status: "success",
@@ -148,7 +152,10 @@ export const getUserPosts = asyncHandler(
       throw ApiError.badRequest("Username is required.");
     }
     const page = Math.max(1, parseInt(req.query.page as string) || 1);
-    const limit = Math.min(50, Math.max(1, parseInt(req.query.limit as string) || 20));
+    const limit = Math.min(
+      50,
+      Math.max(1, parseInt(req.query.limit as string) || 20),
+    );
     const user = await prisma.user.findUnique({
       where: { username },
       select: { id: true },
@@ -166,8 +173,16 @@ export const getUserPosts = asyncHandler(
           author: { select: { id: true, username: true, avatarUrl: true } },
           _count: { select: { likes: true, comments: true } },
           ...(req.user?.id && {
-            likes: { where: { userId: req.user.id }, select: { id: true }, take: 1 },
-            bookmarks: { where: { userId: req.user.id }, select: { userId: true }, take: 1 },
+            likes: {
+              where: { userId: req.user.id },
+              select: { id: true },
+              take: 1,
+            },
+            bookmarks: {
+              where: { userId: req.user.id },
+              select: { userId: true },
+              take: 1,
+            },
           }),
         },
       }),
@@ -185,7 +200,13 @@ export const getUserPosts = asyncHandler(
           likes: undefined,
           bookmarks: undefined,
         })),
-        pagination: { page, limit, totalPosts, totalPages, hasNextPage: page < totalPages },
+        pagination: {
+          page,
+          limit,
+          totalPosts,
+          totalPages,
+          hasNextPage: page < totalPages,
+        },
       },
     });
   },

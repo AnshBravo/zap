@@ -1,6 +1,6 @@
 import LogoBlack from "../../assets/Zap logo black.png";
 import LogoWhite from "../../assets/Zap logo white.png";
-import { useTheme } from "../../context/ThemeContext";
+import { useTheme } from "../../context/useTheme";
 
 export function TopNavbar() {
   const { theme } = useTheme();

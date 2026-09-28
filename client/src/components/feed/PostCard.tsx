@@ -1,358 +1,445 @@
 import { useEffect, useState } from "react";
+import { Link, useOutletContext } from "react-router-dom";
 import {
-  Heart,
   MessageSquare,
-  Share,
-  MoreHorizontal,
+  Heart,
+  Share2,
+  Bookmark,
   Trash2,
-  Loader2,
   Send,
+  Loader2,
 } from "lucide-react";
-import { motion } from "framer-motion";
-import {
-  addComment,
-  deleteComment,
-  getComments,
-  postsApi,
-  toggleLike,
-} from "../../api/posts";
-import { useAuth } from "../../context/AuthContext";
-import type { Comment } from "../../types";
+import type { AppLayoutContext } from "../layout/AppLayout";
+import type { Comment, Post } from "../../types";
+import { postsApi } from "../../api/posts";
+import { getApiErrorMessage } from "../../api/errors";
+import { useAuth } from "../../context/useAuth";
 
-export interface ZapPost {
-  id: string;
-  content: string;
-  mediaUrl?: string | null;
-  mediaKey?: string | null;
-  authorId: string;
-  createdAt: string;
-  updatedAt: string;
-  author: {
-    id: string;
-    username: string;
-    avatarUrl?: string | null;
-  };
-  _count: {
-    likes: number;
-    comments: number;
-  };
-  isLiked?: boolean;
-  isReposted?: boolean;
-}
-
-interface PostCardProps {
-  post: ZapPost;
-  onDelete?: (postId: string) => void;
-}
-
-export default function PostCard({ post, onDelete }: PostCardProps) {
+function MobileInlineComments({
+  postId,
+  onCountChange,
+}: {
+  postId: string;
+  onCountChange: (change: number) => void;
+}) {
   const { user } = useAuth();
-  const [isLiked, setIsLiked] = useState(post.isLiked || false);
-  const [likesCount, setLikesCount] = useState(post._count?.likes || 0);
-  const [commentsCount, setCommentsCount] = useState(
-    post._count?.comments || 0,
-  );
-  const [isDeleting, setIsDeleting] = useState(false);
-  const [commentsOpen, setCommentsOpen] = useState(false);
   const [comments, setComments] = useState<Comment[]>([]);
-  const [commentDraft, setCommentDraft] = useState("");
-  const [commentsLoading, setCommentsLoading] = useState(false);
-  const [commentSubmitting, setCommentSubmitting] = useState(false);
-  const [commentError, setCommentError] = useState<string | null>(null);
-  const [shareStatus, setShareStatus] = useState<string | null>(null);
+  const [draft, setDraft] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!commentsOpen) return;
+    let cancelled = false;
+    postsApi
+      .getComments(postId, 1, 20)
+      .then((response) => {
+        if (!cancelled) setComments(response.data.comments);
+      })
+      .catch((requestError: unknown) => {
+        if (!cancelled) {
+          setError(
+            getApiErrorMessage(requestError, "Comments could not be loaded."),
+          );
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
 
-    const fetchComments = async () => {
-      try {
-        setCommentsLoading(true);
-        const response = await getComments(post.id, 1, 10);
-        setComments(response.data.comments || []);
-      } catch (error) {
-        console.error("Failed to load comments:", error);
-        setComments([]);
-      } finally {
-        setCommentsLoading(false);
-      }
+    return () => {
+      cancelled = true;
     };
+  }, [postId]);
 
-    fetchComments();
-  }, [commentsOpen, post.id]);
-
-  const handleLike = async () => {
-    const previousIsLiked = isLiked;
-    const previousLikesCount = likesCount;
-    const nextIsLiked = !previousIsLiked;
-
-    setIsLiked(nextIsLiked);
-    setLikesCount(
-      nextIsLiked
-        ? previousLikesCount + 1
-        : Math.max(0, previousLikesCount - 1),
-    );
+  const submitComment = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!draft.trim() || submitting) return;
 
     try {
-      const response = await toggleLike(post.id);
+      setSubmitting(true);
+      setError(null);
+      const response = await postsApi.addComment(postId, draft.trim());
+      setComments((current) => [response.data.comment, ...current]);
+      setDraft("");
+      onCountChange(1);
+    } catch (requestError: unknown) {
+      setError(
+        getApiErrorMessage(requestError, "Comment could not be posted."),
+      );
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const removeComment = async (commentId: string) => {
+    try {
+      await postsApi.deleteComment(commentId);
+      setComments((current) =>
+        current.filter((comment) => comment.id !== commentId),
+      );
+      onCountChange(-1);
+    } catch (requestError: unknown) {
+      setError(
+        getApiErrorMessage(requestError, "Comment could not be deleted."),
+      );
+    }
+  };
+
+  return (
+    <section className="mt-3 border-t border-pure-border-light dark:border-pure-border-dark pt-3">
+      {error && (
+        <p role="alert" className="mb-2 text-xs text-red-600">
+          {error}
+        </p>
+      )}
+      {loading ? (
+        <div className="flex justify-center py-4">
+          <Loader2 size={16} className="animate-spin" />
+        </div>
+      ) : comments.length === 0 ? (
+        <p className="py-2 text-xs text-pure-gray-light dark:text-pure-gray-dark">
+          No comments yet.
+        </p>
+      ) : (
+        <div className="max-h-56 space-y-3 overflow-y-auto py-1">
+          {comments.map((comment) => (
+            <div
+              key={comment.id}
+              className="flex items-start justify-between gap-3 text-xs"
+            >
+              <p className="min-w-0">
+                <Link
+                  to={`/profile/${comment.user.username}`}
+                  className="mr-1 font-bold"
+                >
+                  @{comment.user.username}
+                </Link>
+                {comment.content}
+              </p>
+              {comment.userId === user?.id && (
+                <button
+                  type="button"
+                  onClick={() => void removeComment(comment.id)}
+                  aria-label="Delete comment"
+                  className="shrink-0 text-pure-gray-light hover:text-red-600"
+                >
+                  <Trash2 size={13} />
+                </button>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+      <form onSubmit={submitComment} className="mt-3 flex gap-2">
+        <input
+          value={draft}
+          onChange={(event) => setDraft(event.target.value)}
+          maxLength={500}
+          placeholder="Add a comment..."
+          className="min-w-0 flex-1 border-b border-pure-border-light bg-transparent py-2 text-xs outline-none focus:border-black dark:border-pure-border-dark dark:focus:border-white"
+        />
+        <button
+          type="submit"
+          disabled={!draft.trim() || submitting}
+          aria-label="Post comment"
+          className="p-2 disabled:opacity-40"
+        >
+          {submitting ? (
+            <Loader2 size={14} className="animate-spin" />
+          ) : (
+            <Send size={14} />
+          )}
+        </button>
+      </form>
+    </section>
+  );
+}
+
+export default function PostCard({
+  post,
+  onDelete,
+  onCommentCountChange,
+}: {
+  post: Post;
+  onDelete?: (postId: string) => void;
+  onCommentCountChange?: (postId: string, count: number) => void;
+}) {
+  const { user } = useAuth();
+  const context = useOutletContext<AppLayoutContext>();
+
+  const selectedPost = context?.selectedPost;
+  const handleToggleComments = context?.handleToggleComments;
+
+  // Local interaction states
+  const [showMobileComments, setShowMobileComments] = useState(false);
+  const [isLiked, setIsLiked] = useState(post.isLiked ?? false);
+  const [isBookmarked, setIsBookmarked] = useState(post.isBookmarked ?? false);
+  const [isLiking, setIsLiking] = useState(false);
+  const [isBookmarking, setIsBookmarking] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [interactionError, setInteractionError] = useState<string | null>(null);
+
+  // Counter states
+  const [likesCount, setLikesCount] = useState(post._count?.likes ?? 0);
+  const [commentsCount, setCommentsCount] = useState(
+    post._count?.comments ?? 0,
+  );
+
+  const isSelectedInSidebar = selectedPost?.id === post.id;
+
+  const onCommentClick = () => {
+    if (window.innerWidth >= 1024) {
+      handleToggleComments?.(post);
+    } else {
+      setShowMobileComments((prev) => !prev);
+    }
+  };
+
+  const handleLike = async () => {
+    if (isLiking) return;
+    try {
+      setIsLiking(true);
+      setInteractionError(null);
+      const response = await postsApi.toggleLike(post.id);
       setIsLiked(response.liked);
-      if (response.liked !== nextIsLiked) {
-        setLikesCount(
-          response.liked
-            ? previousLikesCount + 1
-            : Math.max(0, previousLikesCount - 1),
-        );
-      }
-    } catch (err) {
-      console.error("Failed to toggle like:", err);
-      setIsLiked(previousIsLiked);
-      setLikesCount(previousLikesCount);
+      setLikesCount((current) =>
+        Math.max(0, current + (response.liked ? 1 : -1)),
+      );
+    } catch (error: unknown) {
+      setInteractionError(
+        getApiErrorMessage(error, "Like could not be updated."),
+      );
+    } finally {
+      setIsLiking(false);
+    }
+  };
+
+  const handleBookmark = async () => {
+    if (isBookmarking) return;
+    try {
+      setIsBookmarking(true);
+      setInteractionError(null);
+      const response = await postsApi.toggleBookmark(post.id);
+      setIsBookmarked(response.bookmarked);
+    } catch (error: unknown) {
+      setInteractionError(
+        getApiErrorMessage(error, "Saved post could not be updated."),
+      );
+    } finally {
+      setIsBookmarking(false);
     }
   };
 
   const handleDelete = async () => {
-    if (!onDelete || !user || user.id !== post.authorId) return;
-
+    if (isDeleting || !window.confirm("Delete this post?")) return;
     try {
       setIsDeleting(true);
+      setInteractionError(null);
       await postsApi.deletePost(post.id);
-      onDelete(post.id);
-    } catch (err) {
-      console.error("Failed to delete post:", err);
+      onDelete?.(post.id);
+    } catch (error: unknown) {
+      setInteractionError(
+        getApiErrorMessage(error, "Post could not be deleted."),
+      );
     } finally {
       setIsDeleting(false);
     }
   };
 
-  const handleDeleteComment = async (commentId: string) => {
-    try {
-      await deleteComment(commentId);
-      setComments((prev) => prev.filter((item) => item.id !== commentId));
-      setCommentsCount((prev) => Math.max(0, prev - 1));
-    } catch (error) {
-      console.error("Failed to delete comment:", error);
-    }
-  };
-
-  const handleCommentSubmit = async (event: React.FormEvent) => {
-    event.preventDefault();
-    if (!commentDraft.trim() || commentSubmitting) return;
-
-    try {
-      setCommentSubmitting(true);
-      setCommentError(null);
-
-      const response = await addComment(post.id, commentDraft.trim());
-
-      const createdComment = response.data.comment;
-      setComments((prev) => [createdComment, ...prev]);
-      setCommentsCount((prev) => prev + 1);
-      setCommentDraft("");
-    } catch (error: any) {
-      console.error("Failed to add comment:", error);
-      setCommentError(
-        error?.response?.data?.message ||
-          "Unable to add your comment right now.",
-      );
-    } finally {
-      setCommentSubmitting(false);
-    }
-  };
-
   const handleShare = async () => {
-    const shareText = `@${post.author.username}: ${post.content}`;
-    const shareUrl = window.location.href;
-
     try {
       if (navigator.share) {
         await navigator.share({
-          title: `Zap by @${post.author.username}`,
-          text: shareText,
-          url: shareUrl,
+          title: `Post by @${post.author?.username || "user"}`,
+          text: post.content,
+          url: `${window.location.origin}/#post-${post.id}`,
         });
-        setShareStatus("Post shared");
-        return;
+      } else {
+        await navigator.clipboard.writeText(
+          `${window.location.origin}/#post-${post.id}`,
+        );
       }
-
-      await navigator.clipboard.writeText(`${shareText}\n${shareUrl}`);
-      setShareStatus("Link copied");
-    } catch (error) {
-      console.error("Failed to share post:", error);
-      setShareStatus("Share unavailable");
+    } catch (error: unknown) {
+      if (error instanceof Error && error.name === "AbortError") return;
+      setInteractionError(
+        getApiErrorMessage(error, "Post could not be shared."),
+      );
     }
-
-    window.setTimeout(() => setShareStatus(null), 1800);
   };
 
-  return (
-    <div className="p-4 border-b border-pure-border-light dark:border-pure-border-dark hover:bg-pure-hover-light/40 dark:hover:bg-pure-hover-dark/40 transition-colors">
-      <div className="flex gap-3">
-        {/* Avatar */}
-        <div className="w-10 h-10 rounded-full bg-black dark:bg-white text-white dark:text-black flex items-center justify-center font-bold text-base shrink-0 uppercase">
-          {post.author.username.charAt(0)}
-        </div>
+  const profilePath = post.author?.username
+    ? `/profile/${post.author.username}`
+    : "#";
 
-        {/* Post Main Body */}
+  return (
+    <article className="border-b border-pure-border-light dark:border-pure-border-dark p-4 hover:bg-pure-hover-light/30 dark:hover:bg-pure-hover-dark/30 transition-colors">
+      <div className="flex gap-3">
+        {/* User Avatar linked to profile */}
+        <Link
+          to={profilePath}
+          className="w-10 h-10 rounded-full bg-black/5 dark:bg-white/10 border border-pure-border-light dark:border-pure-border-dark flex items-center justify-center font-bold text-sm uppercase shrink-0 overflow-hidden hover:opacity-80 transition-opacity"
+        >
+          {post.author?.avatarUrl ? (
+            <img
+              src={post.author.avatarUrl}
+              alt={post.author.username}
+              className="w-full h-full object-cover"
+            />
+          ) : (
+            post.author?.username?.charAt(0) || "U"
+          )}
+        </Link>
+
+        {/* Content & Actions */}
         <div className="flex-1 min-w-0">
-          {/* Header info */}
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2 overflow-hidden text-sm">
-              <span className="font-extrabold truncate text-black dark:text-white">
-                @{post.author.username}
-              </span>
-              <span className="text-pure-gray-light dark:text-pure-gray-dark font-medium">
-                ·
-              </span>
-              <span className="text-pure-gray-light dark:text-pure-gray-dark font-medium text-xs">
-                {new Date(post.createdAt).toLocaleDateString()}
-              </span>
+          {/* Header Row */}
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-1.5 min-w-0">
+              {/* Profile Link */}
+              <Link
+                to={profilePath}
+                className="font-bold text-sm truncate text-black dark:text-white hover:underline"
+              >
+                @{post.author?.username || "anonymous"}
+              </Link>
+              <time
+                dateTime={post.createdAt}
+                className="shrink-0 text-[11px] text-pure-gray-light dark:text-pure-gray-dark"
+              >
+                {new Date(post.createdAt).toLocaleDateString(undefined, {
+                  month: "short",
+                  day: "numeric",
+                })}
+              </time>
             </div>
-            <div className="flex items-center gap-2">
-              {user?.id === post.authorId && (
-                <button
-                  onClick={handleDelete}
-                  disabled={isDeleting}
-                  className="text-pure-gray-light dark:text-pure-gray-dark hover:text-red-500 transition-colors disabled:opacity-50"
-                  aria-label="Delete post"
-                >
-                  <Trash2 size={14} />
-                </button>
-              )}
-              <button className="text-pure-gray-light dark:text-pure-gray-dark hover:text-black dark:hover:text-white transition-colors">
-                <MoreHorizontal size={16} />
+
+            {user?.id === post.authorId && (
+              <button
+                type="button"
+                disabled={isDeleting}
+                onClick={() => void handleDelete()}
+                aria-label="Delete post"
+                title="Delete post"
+                className="p-2 text-pure-gray-light hover:text-red-600 disabled:opacity-40"
+              >
+                {isDeleting ? (
+                  <Loader2 size={15} className="animate-spin" />
+                ) : (
+                  <Trash2 size={15} />
+                )}
               </button>
-            </div>
+            )}
           </div>
 
-          {/* Content */}
-          <p className="mt-2 text-sm leading-relaxed text-black dark:text-white wrap-break-word">
+          {/* Post Content */}
+          <p className="mt-1 text-sm text-black dark:text-white leading-relaxed whitespace-pre-line wrap-break-word">
             {post.content}
           </p>
 
+          {/* Optional Media */}
           {post.mediaUrl && (
-            <div className="mt-3 overflow-hidden rounded-xl border border-pure-border-light dark:border-pure-border-dark">
-              {post.mediaKey?.match(/\.(mp4|webm)$/i) ? (
+            <div className="mt-3 overflow-hidden border border-pure-border-light dark:border-pure-border-dark bg-black">
+              {/\.(mp4|webm)(?:$|\?)/i.test(post.mediaUrl) ? (
                 <video
                   src={post.mediaUrl}
                   controls
-                  className="max-h-96 w-full"
+                  playsInline
+                  preload="metadata"
+                  className="max-h-[70vh] w-full object-contain"
                 />
               ) : (
                 <img
                   src={post.mediaUrl}
-                  alt="Post media"
-                  className="max-h-96 w-full object-cover"
+                  alt="Post media attachment"
+                  loading="lazy"
+                  className="max-h-[70vh] w-full object-contain"
                 />
               )}
             </div>
+          )}
+
+          {interactionError && (
+            <p role="alert" className="mt-2 text-xs text-red-600">
+              {interactionError}
+            </p>
           )}
 
           {/* Action Bar */}
-          <div className="flex items-center justify-between mt-3 text-pure-gray-light dark:text-pure-gray-dark max-w-md">
+          <div className="flex items-center justify-between mt-3 text-pure-gray-light dark:text-pure-gray-dark max-w-xs">
+            {/* Like Button */}
             <button
-              onClick={() => setCommentsOpen((prev) => !prev)}
-              className="flex items-center gap-1.5 text-xs font-medium hover:text-black dark:hover:text-white transition-colors"
-            >
-              <MessageSquare size={16} />
-              <span>{commentsCount}</span>
-            </button>
-
-            <button
-              onClick={handleLike}
-              className={`flex items-center gap-1.5 text-xs font-medium transition-colors ${
-                isLiked
-                  ? "text-rose-500"
-                  : "hover:text-black dark:hover:text-white"
+              type="button"
+              onClick={() => void handleLike()}
+              disabled={isLiking}
+              className={`flex items-center gap-1.5 text-xs font-medium transition-colors hover:text-rose-500 group ${
+                isLiked ? "text-rose-500" : ""
               }`}
             >
-              <motion.div whileTap={{ scale: 1.3 }}>
-                <Heart size={16} fill={isLiked ? "currentColor" : "none"} />
-              </motion.div>
+              <div className="p-1.5 rounded-full group-hover:bg-rose-500/10">
+                <Heart size={18} fill={isLiked ? "currentColor" : "none"} />
+              </div>
               <span>{likesCount}</span>
             </button>
 
+            {/* Comment Button */}
+            <button
+              type="button"
+              onClick={onCommentClick}
+              className={`flex items-center gap-1.5 text-xs font-medium transition-colors hover:text-sky-500 group ${
+                isSelectedInSidebar || showMobileComments ? "text-sky-500" : ""
+              }`}
+            >
+              <div className="p-1.5 rounded-full group-hover:bg-sky-500/10">
+                <MessageSquare size={18} />
+              </div>
+              <span>{commentsCount}</span>
+            </button>
+
+            {/* Bookmark Button */}
+            <button
+              type="button"
+              onClick={() => void handleBookmark()}
+              disabled={isBookmarking}
+              className={`flex items-center text-xs font-medium transition-colors hover:text-amber-500 group ${
+                isBookmarked ? "text-amber-500" : ""
+              }`}
+            >
+              <div className="p-1.5 rounded-full group-hover:bg-amber-500/10">
+                <Bookmark
+                  size={18}
+                  fill={isBookmarked ? "currentColor" : "none"}
+                />
+              </div>
+            </button>
+
+            {/* Share Button */}
             <button
               type="button"
               onClick={handleShare}
-              className="flex items-center gap-1.5 text-xs font-medium hover:text-black dark:hover:text-white transition-colors"
-              aria-label="Share post"
+              className="flex items-center text-xs font-medium transition-colors hover:text-sky-500 group"
             >
-              <Share size={16} />
-              {shareStatus ? (
-                <span className="text-[10px] text-emerald-500">
-                  {shareStatus}
-                </span>
-              ) : null}
+              <div className="p-1.5 rounded-full group-hover:bg-sky-500/10">
+                <Share2 size={18} />
+              </div>
             </button>
           </div>
-
-          {commentsOpen && (
-            <div className="mt-4 border-t border-pure-border-light dark:border-pure-border-dark pt-3 space-y-3">
-              <form onSubmit={handleCommentSubmit} className="flex gap-2">
-                <input
-                  value={commentDraft}
-                  onChange={(event) => setCommentDraft(event.target.value)}
-                  placeholder="Write a comment..."
-                  maxLength={200}
-                  className="flex-1 rounded-xl border border-pure-border-light dark:border-pure-border-dark bg-pure-hover-light dark:bg-pure-hover-dark px-3 py-2 text-xs text-black dark:text-white placeholder:text-pure-gray-light dark:placeholder:text-pure-gray-dark focus:outline-none"
-                />
-                <button
-                  type="submit"
-                  disabled={!commentDraft.trim() || commentSubmitting}
-                  className="rounded-xl bg-black px-3 py-2 text-xs font-bold text-white disabled:opacity-50 dark:bg-white dark:text-black"
-                >
-                  {commentSubmitting ? (
-                    <Loader2 size={14} className="animate-spin" />
-                  ) : (
-                    <Send size={14} />
-                  )}
-                </button>
-              </form>
-
-              {commentError && (
-                <div className="text-xs text-red-500">{commentError}</div>
-              )}
-
-              {commentsLoading ? (
-                <div className="flex items-center justify-center py-2 text-xs text-pure-gray-light dark:text-pure-gray-dark">
-                  <Loader2 className="mr-2 animate-spin" size={14} />
-                  Loading comments...
-                </div>
-              ) : comments.length === 0 ? (
-                <div className="text-xs text-pure-gray-light dark:text-pure-gray-dark">
-                  No comments yet.
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {comments.map((comment) => (
-                    <div
-                      key={comment.id}
-                      className="rounded-xl border border-pure-border-light dark:border-pure-border-dark bg-pure-hover-light/40 px-3 py-2 dark:bg-pure-hover-dark/40"
-                    >
-                      <div className="mb-1 flex items-center justify-between gap-2 text-[10px] text-pure-gray-light dark:text-pure-gray-dark">
-                        <span className="font-bold text-black dark:text-white">
-                          @{comment.user.username}
-                        </span>
-                        {comment.userId === user?.id && (
-                          <button
-                            type="button"
-                            onClick={() => handleDeleteComment(comment.id)}
-                            className="text-red-500 transition-opacity hover:opacity-80"
-                          >
-                            Delete
-                          </button>
-                        )}
-                      </div>
-                      <p className="text-xs leading-relaxed text-black dark:text-white">
-                        {comment.content}
-                      </p>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
         </div>
       </div>
-    </div>
+
+      {/* Mobile Inline Comments Drawer */}
+      {showMobileComments && (
+        <div className="block lg:hidden mt-3 pt-3 border-t border-pure-border-light dark:border-pure-border-dark pl-13">
+          <MobileInlineComments
+            postId={post.id}
+            onCountChange={(change) => {
+              const nextCount = Math.max(0, commentsCount + change);
+              setCommentsCount(nextCount);
+              onCommentCountChange?.(post.id, nextCount);
+            }}
+          />
+        </div>
+      )}
+    </article>
   );
 }

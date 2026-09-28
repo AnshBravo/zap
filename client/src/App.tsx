@@ -1,5 +1,5 @@
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
-import { useAuth } from "./context/AuthContext";
+import { useAuth } from "./context/useAuth";
 import type { ReactElement } from "react";
 import LoginPage from "./pages/LoginPage";
 import RegisterPage from "./pages/RegisterPage";
@@ -8,8 +8,10 @@ import { AppLayout } from "./components/layout/AppLayout";
 import FeedPage from "./pages/FeedPage";
 import NotificationsPage from "./pages/NotificationsPage";
 import MessagesPage from "./pages/MessagesPage";
-import ExplorePage from "./pages/ExplorePage";
+import ExplorePage from "./pages/ExploreGridPage";
 import FollowListPage from "./pages/FollowListPage";
+import SearchPage from "./pages/SearchPage";
+import ShortiesPage from "./pages/ShortiesPage";
 
 // Protected Route Guard
 function ProtectedRoutes({ children }: { children: ReactElement }) {
@@ -46,6 +48,8 @@ export default function App() {
         >
           <Route path="/" element={<FeedPage />} />
           <Route path="/explore" element={<ExplorePage />} />
+          <Route path="/search" element={<SearchPage />} />
+          <Route path="/shorties" element={<ShortiesPage />} />
           <Route path="/notifications" element={<NotificationsPage />} />
           <Route path="/messages" element={<MessagesPage />} />
           <Route path="/profile" element={<ProfilePage />} />

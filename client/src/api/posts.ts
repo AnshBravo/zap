@@ -64,6 +64,11 @@ export interface ToggleLikeResponse {
   liked: boolean;
 }
 
+export interface ToggleBookmarkResponse {
+  status: string;
+  bookmarked: boolean;
+}
+
 export interface AddCommentResponse {
   status: string;
   message: string;
@@ -84,6 +89,13 @@ export const toggleLike = async (
   postId: string,
 ): Promise<ToggleLikeResponse> => {
   const response = await api.post(`/posts/${postId}/like`);
+  return response.data;
+};
+
+export const toggleBookmark = async (
+  postId: string,
+): Promise<ToggleBookmarkResponse> => {
+  const response = await api.post(`/posts/${postId}/bookmark`);
   return response.data;
 };
 
@@ -151,6 +163,26 @@ export const postsApi = {
 
   // POST /api/v1/posts/:postId/like
   toggleLike,
+
+  toggleBookmark,
+
+  getBookmarks: async (page = 1, limit = 20): Promise<FeedResponse> => {
+    const response = await api.get("/posts/bookmarks", {
+      params: { page, limit },
+    });
+    return response.data;
+  },
+
+  searchPosts: async (
+    query: string,
+    page = 1,
+    limit = 20,
+  ): Promise<FeedResponse> => {
+    const response = await api.get("/posts/search", {
+      params: { q: query, page, limit },
+    });
+    return response.data;
+  },
 
   // POST /api/v1/posts/:postId/comments
   addComment,

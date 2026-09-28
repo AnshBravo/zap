@@ -1,9 +1,11 @@
 import { NavLink, useNavigate } from "react-router-dom";
-import { useAuth } from "../../context/AuthContext";
-import { useTheme } from "../../context/ThemeContext";
+import { useAuth } from "../../context/useAuth";
+import { useTheme } from "../../context/useTheme";
 import {
   Home,
   Search,
+  Compass,
+  Clapperboard,
   Bell,
   Mail,
   User,
@@ -14,7 +16,7 @@ import {
 } from "lucide-react";
 import { motion } from "framer-motion";
 
-export function Sidebar() {
+export function Sidebar({ onCreatePost }: { onCreatePost: () => void }) {
   const { user, logout } = useAuth();
   const { theme, toggleTheme } = useTheme();
   const navigate = useNavigate();
@@ -26,7 +28,9 @@ export function Sidebar() {
 
   const navItems = [
     { label: "Home", path: "/", icon: Home },
-    { label: "Explore", path: "/explore", icon: Search },
+    { label: "Search", path: "/search", icon: Search },
+    { label: "Explore", path: "/explore", icon: Compass },
+    { label: "Shorties", path: "/shorties", icon: Clapperboard },
     { label: "Notifications", path: "/notifications", icon: Bell },
     { label: "Messages", path: "/messages", icon: Mail },
     {
@@ -37,12 +41,12 @@ export function Sidebar() {
   ];
 
   return (
-    <aside className="sticky top-0 h-screen w-20 xl:w-64 flex flex-col justify-between p-3 xl:p-6 border-r border-pure-border-light dark:border-pure-border-dark bg-white dark:bg-black shrink-0 transition-colors">
+    <aside className="sticky top-0 hidden h-screen w-16 shrink-0 flex-col justify-between border-r border-pure-border-light bg-white p-2 transition-colors dark:border-pure-border-dark dark:bg-black sm:flex sm:w-20 sm:p-3 xl:w-64 xl:p-6">
       {/* Top Branding & Navigation */}
       <div className="flex flex-col gap-8">
         {/* Logo */}
         <div className="flex items-center gap-3 px-2">
-          <span className="text-2xl">Zap</span>
+          <span className="font-sans text-2xl font-bold">Zap</span>
         </div>
 
         {/* Navigation Items */}
@@ -53,6 +57,7 @@ export function Sidebar() {
               <NavLink
                 key={item.label}
                 to={item.path}
+                end={item.path === "/"}
                 className={({ isActive }) =>
                   `flex items-center gap-4 px-3 py-3 rounded-xl font-medium text-sm transition-all ${
                     isActive
@@ -72,7 +77,7 @@ export function Sidebar() {
         <motion.button
           whileHover={{ scale: 1.02 }}
           whileTap={{ scale: 0.98 }}
-          onClick={() => navigate("/", { state: { focusComposer: true } })}
+          onClick={onCreatePost}
           className="w-full py-3 px-4 flex items-center justify-center gap-2 rounded-xl bg-black text-white dark:bg-white dark:text-black font-semibold text-sm hover:opacity-90 transition-opacity"
         >
           <PlusSquare size={18} />

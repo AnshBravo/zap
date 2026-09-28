@@ -11,6 +11,7 @@ export interface User {
     followers?: number;
     following?: number;
   };
+  isFollowing?: boolean;
 }
 
 export interface Post {
@@ -22,11 +23,24 @@ export interface Post {
   authorId: string;
   createdAt: string;
   updatedAt: string;
+  isLiked?: boolean;
+  isBookmarked?: boolean;
   author: {
     id: string;
     username: string;
     avatarUrl?: string | null;
   };
+  comments?: Array<{
+    id: string;
+    userId: string;
+    content: string;
+    createdAt: string;
+  }>;
+  likes?: Array<{
+    id: string;
+    userId: string;
+    createdAt: string;
+  }>;
   _count: {
     likes: number;
     comments: number;
@@ -65,7 +79,7 @@ export interface NotificationItem {
   message: string;
   postId?: string;
   commentId?: string;
-  triggerBy?: { id: string; username: string; avatarUrl?: string | null };
+  triggeredBy?: { id: string; username: string; avatarUrl?: string | null };
   followerId?: string;
   createdAt?: string;
   read?: boolean;

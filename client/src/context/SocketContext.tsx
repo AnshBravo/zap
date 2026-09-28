@@ -1,11 +1,7 @@
-import React, { createContext, useContext, useEffect, useState } from "react";
-import { io, Socket } from "socket.io-client";
-import { useAuth } from "./AuthContext";
-
-interface SocketContextType {
-  socket: Socket | null;
-  isConnected: boolean;
-}
+import React, { useEffect, useState } from "react";
+import { io, type Socket } from "socket.io-client";
+import { useAuth } from "./useAuth";
+import { SocketContext } from "./SocketContextBase";
 
 interface SocketProviderProps {
   children: React.ReactNode;
@@ -13,8 +9,6 @@ interface SocketProviderProps {
 
 const SOCKET_SERVER_URL =
   import.meta.env.VITE_SOCKET_URL || "http://localhost:3000";
-
-const SocketContext = createContext<SocketContextType | undefined>(undefined);
 
 export function SocketProvider({ children }: SocketProviderProps) {
   const { token, isAuthenticated } = useAuth();
@@ -24,14 +18,7 @@ export function SocketProvider({ children }: SocketProviderProps) {
   useEffect(() => {
     // Establish connection only when the user is authenticated
 
-    if (!isAuthenticated && !token) {
-      if (socket) {
-        socket.disconnect();
-        setSocket(null);
-        setIsConnected(false);
-      }
-      return;
-    }
+    if (!isAuthenticated || !token) return;
 
     const socketInstance = io(SOCKET_SERVER_URL, {
       auth: {
@@ -42,6 +29,7 @@ export function SocketProvider({ children }: SocketProviderProps) {
     });
 
     socketInstance.on("connect", () => {
+      setSocket(socketInstance);
       setIsConnected(true);
     });
     socketInstance.on("disconnect", () => {
@@ -52,8 +40,6 @@ export function SocketProvider({ children }: SocketProviderProps) {
       console.error("Socket connection error:", error.message);
       setIsConnected(false);
     });
-
-    setSocket(socketInstance);
 
     //cleanup on unmount or token change
     return () => {
@@ -67,11 +53,3 @@ export function SocketProvider({ children }: SocketProviderProps) {
     </SocketContext.Provider>
   );
 }
-
-export const useSocket = () => {
-  const context = useContext(SocketContext);
-  if (!context) {
-    throw new Error("useSocket must be used within a SocketProvider");
-  }
-  return context;
-};

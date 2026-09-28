@@ -1,17 +1,10 @@
-import React, { createContext, useContext, useEffect, useState } from "react";
-
-type Theme = "dark" | "light";
-
-interface ThemeContextType {
-  theme: Theme;
-  toggleTheme: () => void;
-}
+import React, { useEffect, useState } from "react";
+import { ThemeContext } from "./ThemeContextBase";
+import type { Theme } from "./ThemeContextBase";
 
 interface ThemeProviderProps {
   children: React.ReactNode;
 }
-
-const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
 export function ThemeProvider({ children }: ThemeProviderProps) {
   const [theme, setTheme] = useState<Theme>(() => {
@@ -30,8 +23,6 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
       root.classList.remove("dark");
     }
     localStorage.setItem("zap_theme", theme);
-    // Log theme change for debugging
-    console.log(`Theme changed to: ${theme}`);
   }, [theme]);
 
   const toggleTheme = () => {
@@ -44,11 +35,3 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
     </ThemeContext.Provider>
   );
 }
-
-export const useTheme = () => {
-  const context = useContext(ThemeContext);
-  if (!context) {
-    throw new Error("useTheme must be used within a ThemeProvider");
-  }
-  return context;
-};

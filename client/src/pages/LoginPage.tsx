@@ -1,9 +1,10 @@
 import React, { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { useAuth } from "../context/AuthContext";
-import { useTheme } from "../context/ThemeContext";
+import { useAuth } from "../context/useAuth";
+import { useTheme } from "../context/useTheme";
 import { Sun, Moon, ArrowRight, AlertCircle } from "lucide-react";
 import { motion } from "framer-motion";
+import { getApiErrorMessage } from "../api/errors";
 import {
   PageTransition,
   FadeIn,
@@ -35,10 +36,10 @@ export default function LoginPage() {
       setIsSubmitting(true);
       await login(email, password);
       navigate("/");
-    } catch (err: any) {
-      const message =
-        err.response?.data?.message || "Invalid credentials. Please try again.";
-      setError(message);
+    } catch (err: unknown) {
+      setError(
+        getApiErrorMessage(err, "Invalid credentials. Please try again."),
+      );
     } finally {
       setIsSubmitting(false);
     }

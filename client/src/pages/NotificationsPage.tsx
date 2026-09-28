@@ -1,26 +1,49 @@
 import { useState, useEffect } from "react";
 import { Heart, MessageCircle, UserPlus, Zap, BellOff } from "lucide-react";
 import { motion } from "framer-motion";
-import { useSocket } from "../context/SocketContext";
+import { useSocket } from "../context/useSocket";
+import { useAuth } from "../context/useAuth";
 import type { NotificationItem } from "../types";
+
+type NotificationPayload = Omit<NotificationItem, "id" | "createdAt" | "read">;
 
 export default function NotificationsPage() {
   const { socket } = useSocket();
+  const { user } = useAuth();
+  const storageKey = user?.id
+    ? `zap_notifications_${user.id}`
+    : "zap_notifications";
   const [activeTab, setActiveTab] = useState<"all" | "mentions">("all");
-  const [notifications, setNotifications] = useState<NotificationItem[]>([]);
+  const [notifications, setNotifications] = useState<NotificationItem[]>(() => {
+    try {
+      const id = JSON.parse(localStorage.getItem("zap_user") || "null")?.id as
+        | string
+        | undefined;
+      const key = id ? `zap_notifications_${id}` : "zap_notifications";
+      return JSON.parse(
+        localStorage.getItem(key) || "[]",
+      ) as NotificationItem[];
+    } catch {
+      return [];
+    }
+  });
+
+  useEffect(() => {
+    localStorage.setItem(storageKey, JSON.stringify(notifications));
+  }, [notifications, storageKey]);
 
   useEffect(() => {
     if (!socket) return;
 
-    const handleNotification = (payload: any) => {
+    const handleNotification = (payload: NotificationPayload) => {
       const normalized: NotificationItem = {
-        id: `${payload.type}-${payload.postId || payload.followerId || Date.now()}`,
+        id: `${payload.type}-${payload.postId || payload.followerId || Date.now()}-${Date.now()}`,
         type: payload.type,
         message: payload.message || "New activity on Zap.",
         postId: payload.postId,
         commentId: payload.commentId,
         followerId: payload.followerId,
-        triggerBy: payload.triggeredBy,
+        triggeredBy: payload.triggeredBy,
         createdAt: new Date().toISOString(),
         read: false,
       };
@@ -118,18 +141,18 @@ export default function NotificationsPage() {
               <div className="flex-1 space-y-1">
                 <div className="flex items-center gap-2">
                   <div className="w-7 h-7 rounded-full bg-black dark:bg-white text-white dark:text-black flex items-center justify-center font-bold text-xs uppercase">
-                    {item.triggerBy?.avatarUrl ? (
+                    {item.triggeredBy?.avatarUrl ? (
                       <img
-                        src={item.triggerBy.avatarUrl}
-                        alt={item.triggerBy.username}
+                        src={item.triggeredBy.avatarUrl}
+                        alt={item.triggeredBy.username}
                         className="w-full h-full rounded-full object-cover"
                       />
                     ) : (
-                      item.triggerBy?.username?.charAt(0) || "Z"
+                      item.triggeredBy?.username?.charAt(0) || "Z"
                     )}
                   </div>
                   <span className="text-xs sm:text-sm font-bold">
-                    @{item.triggerBy?.username || "zap_user"}
+                    @{item.triggeredBy?.username || "zap_user"}
                   </span>
                   {item.type === "FOLLOW" && (
                     <span className="text-xs text-pure-gray-light dark:text-pure-gray-dark">

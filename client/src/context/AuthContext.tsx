@@ -1,28 +1,27 @@
-import React, { createContext, useContext, useEffect, useState } from "react";
-import type { AuthState, User } from "../types";
+import React, { useEffect, useState } from "react";
+import type { User } from "../types";
 import api from "../api/axios";
-
-interface AuthContextType extends AuthState {
-  login: (email: string, password: string) => Promise<void>;
-  register: (
-    username: string,
-    email: string,
-    password: string,
-  ) => Promise<void>;
-  logout: () => void;
-  updateUser: (updateUser: Partial<User>) => void;
-}
+import { AuthContext } from "./AuthContextBase";
 
 interface AuthProviderProps {
   children: React.ReactNode;
 }
 
-const AuthContext = createContext<AuthContextType | undefined>(undefined);
-
 export function AuthProvider({ children }: AuthProviderProps) {
   const [user, setUser] = useState<User | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
+
+  useEffect(() => {
+    const handleUnauthorized = () => {
+      setUser(null);
+      setToken(null);
+    };
+
+    window.addEventListener("zap:unauthorized", handleUnauthorized);
+    return () =>
+      window.removeEventListener("zap:unauthorized", handleUnauthorized);
+  }, []);
 
   useEffect(() => {
     let isMounted = true;
@@ -134,11 +133,3 @@ export function AuthProvider({ children }: AuthProviderProps) {
     </AuthContext.Provider>
   );
 }
-
-export const useAuth = () => {
-  const context = useContext(AuthContext);
-  if (!context) {
-    throw new Error("useAuth must be used with an AuthProvider");
-  }
-  return context;
-};

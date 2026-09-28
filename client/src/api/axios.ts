@@ -7,9 +7,11 @@ const isLocalhost =
   window.location.hostname === "localhost" ||
   window.location.hostname === "127.0.0.1";
 
-const API_BASE_URL = isLocalhost
-  ? "http://localhost:3000/api/v1"
-  : "https://zap-og4s.onrender.com/api/v1";
+const API_BASE_URL =
+  import.meta.env.VITE_API_URL ||
+  (isLocalhost
+    ? "http://localhost:3000/api/v1"
+    : "https://zap-og4s.onrender.com/api/v1");
 
 export const api = axios.create({
   baseURL: API_BASE_URL,
@@ -37,6 +39,7 @@ api.interceptors.response.use(
     if (error.response?.status === 401) {
       localStorage.removeItem("zap_token");
       localStorage.removeItem("zap_user");
+      window.dispatchEvent(new Event("zap:unauthorized"));
     }
     return Promise.reject(error);
   },

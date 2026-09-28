@@ -43,6 +43,25 @@ export interface UserListResponse {
   };
 }
 
+export interface UserPostsResponse {
+  status: string;
+  data: {
+    posts: import("../types").Post[];
+    pagination: {
+      page: number;
+      limit: number;
+      totalPosts: number;
+      totalPages: number;
+      hasNextPage: boolean;
+    };
+  };
+}
+
+export interface UserSearchResponse {
+  status: string;
+  data: { users: User[] };
+}
+
 export const usersApi = {
   getCurrentUser: async (): Promise<UserProfileResponse> => {
     const response = await api.get("/auth/me");
@@ -52,6 +71,22 @@ export const usersApi = {
   // GET /api/v1/users/:username
   getProfile: async (username: string): Promise<UserProfileResponse> => {
     const response = await api.get(`/users/${username}`);
+    return response.data;
+  },
+
+  getUserPosts: async (
+    username: string,
+    page = 1,
+    limit = 20,
+  ): Promise<UserPostsResponse> => {
+    const response = await api.get(`/users/${username}/posts`, {
+      params: { page, limit },
+    });
+    return response.data;
+  },
+
+  searchUsers: async (query: string): Promise<UserSearchResponse> => {
+    const response = await api.get("/users/search", { params: { q: query } });
     return response.data;
   },
 

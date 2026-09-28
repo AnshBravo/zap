@@ -2,6 +2,8 @@ import { useState } from "react";
 import { X, Loader2 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { usersApi } from "../api/users";
+import { getApiErrorMessage } from "../api/errors";
+import { getUploadUrl, uploadMediaToS3 } from "../api/posts";
 import type { User } from "../types";
 
 interface EditProfileModalProps {
@@ -19,10 +21,29 @@ export default function EditProfileModal({
 }: EditProfileModalProps) {
   const [bio, setBio] = useState(profile.bio || "");
   const [avatarUrl, setAvatarUrl] = useState(profile.avatarUrl || "");
+  const [avatarFile, setAvatarFile] = useState<File | null>(null);
+  const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const BIO_MAX_LENGTH = 160;
+
+  const chooseAvatar = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      setError("Choose an image file for your profile photo.");
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      setError("Profile photos must be 5 MB or smaller.");
+      return;
+    }
+    if (avatarPreview) URL.revokeObjectURL(avatarPreview);
+    setAvatarFile(file);
+    setAvatarPreview(URL.createObjectURL(file));
+    setError(null);
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -30,20 +51,25 @@ export default function EditProfileModal({
       setSaving(true);
       setError(null);
 
-      // Make the backend API call to update the profile details
+      let nextAvatarUrl = avatarUrl.trim();
+      if (avatarFile) {
+        const upload = await getUploadUrl(avatarFile.type);
+        await uploadMediaToS3(upload.data.uploadUrl, avatarFile);
+        nextAvatarUrl = upload.data.mediaUrl;
+      }
+
       const res = await usersApi.updateProfile({
         bio: bio.trim(),
-        avatarUrl: avatarUrl.trim(),
+        avatarUrl: nextAvatarUrl,
       });
 
       // Pass the updated user object back to the parent Profile page state
       onUpdate(res.data.user);
       onClose();
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Failed to update profile:", err);
       setError(
-        err?.response?.data?.message ||
-          "Something went wrong. Please try again.",
+        getApiErrorMessage(err, "Something went wrong. Please try again."),
       );
     } finally {
       setSaving(false);
@@ -94,15 +120,46 @@ export default function EditProfileModal({
             <form onSubmit={handleSubmit} className="space-y-4">
               {/* Avatar URL Input Field */}
               <div className="space-y-1.5">
-                <label className="text-xs font-bold uppercase tracking-wider text-pure-gray-light">
-                  Avatar Image URL
+                <label className="text-xs font-bold uppercase text-pure-gray-light">
+                  Profile photo
                 </label>
+                <div className="flex items-center gap-3">
+                  <div className="grid size-12 shrink-0 place-items-center overflow-hidden rounded-full bg-pure-hover-light text-sm font-bold uppercase dark:bg-pure-hover-dark">
+                    {avatarPreview || avatarUrl ? (
+                      <img
+                        src={avatarPreview || avatarUrl}
+                        alt="Profile preview"
+                        className="h-full w-full object-cover"
+                      />
+                    ) : (
+                      profile.username[0]
+                    )}
+                  </div>
+                  <label className="cursor-pointer border border-pure-border-light px-3 py-2 text-xs font-semibold dark:border-pure-border-dark">
+                    Choose image
+                    <input
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp,image/gif"
+                      onChange={chooseAvatar}
+                      className="sr-only"
+                    />
+                  </label>
+                  {avatarFile && (
+                    <span className="min-w-0 truncate text-xs text-pure-gray-light">
+                      {avatarFile.name}
+                    </span>
+                  )}
+                </div>
                 <input
                   type="url"
-                  placeholder="https://example.com"
+                  placeholder="Or paste an image URL"
                   value={avatarUrl}
-                  onChange={(e) => setAvatarUrl(e.target.value)}
-                  className="w-full px-3.5 py-2.5 text-sm bg-pure-hover-light dark:bg-pure-hover-dark border border-pure-border-light dark:border-pure-border-dark rounded-xl focus:outline-none focus:border-black dark:focus:border-white transition-colors"
+                  onChange={(event) => {
+                    setAvatarUrl(event.target.value);
+                    setAvatarFile(null);
+                    setAvatarPreview(null);
+                  }}
+                  className="w-full border border-pure-border-light bg-pure-hover-light px-3.5 py-2.5 text-sm focus:border-black focus:outline-none dark:border-pure-border-dark dark:bg-pure-hover-dark dark:focus:border-white"
                 />
               </div>
 

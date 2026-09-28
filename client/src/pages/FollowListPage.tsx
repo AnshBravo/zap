@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { ArrowLeft, Loader2, UserPlus, UserCheck } from "lucide-react";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
-import { useAuth } from "../context/AuthContext";
+import { useAuth } from "../context/useAuth";
 import { usersApi } from "../api/users";
+import { getApiErrorMessage } from "../api/errors";
 import type { User } from "../types";
 
 export default function FollowListPage() {
@@ -62,11 +63,10 @@ export default function FollowListPage() {
             return nextState;
           });
         }
-      } catch (err: any) {
+      } catch (err: unknown) {
         console.error("Failed to load follow list:", err);
         setError(
-          err?.response?.data?.message ||
-            "We couldn’t load this list right now.",
+          getApiErrorMessage(err, "We couldn't load this list right now."),
         );
       } finally {
         setLoading(false);
