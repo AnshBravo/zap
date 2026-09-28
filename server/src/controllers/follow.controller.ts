@@ -76,6 +76,10 @@ export const toggleFollow = asyncHandler(
         type: "FOLLOW",
         message: `@${req.user?.username || "Someone"} started following you`,
         followerId: currentUserId,
+        triggeredBy: {
+          id: currentUserId,
+          username: req.user?.username || "Someone",
+        },
       });
     } catch (err) {
       console.error("Socket emit error:", err);

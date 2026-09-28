@@ -111,7 +111,7 @@ export const addComment = asyncHandler(
       throw ApiError.badRequest("Post ID is required");
     }
 
-    if (!content.trim() || typeof content !== "string") {
+    if (typeof content !== "string" || !content.trim()) {
       throw ApiError.badRequest("Comment content cannot be empty");
     }
 
@@ -259,6 +259,79 @@ export const deleteComment = asyncHandler(
     res.status(200).json({
       status: "success",
       message: "Comment deleted successfully",
+    });
+  },
+);
+
+export const toggleBookmark = asyncHandler(
+  async (req: Request, res: Response): Promise<void> => {
+    const userId = req.user?.id;
+    const { postId } = req.params;
+
+    if (!userId) throw ApiError.unauthorized("Authentication required");
+    if (!postId || typeof postId !== "string") {
+      throw ApiError.badRequest("Post ID is required");
+    }
+
+    const postExists = await prisma.post.findUnique({
+      where: { id: postId },
+      select: { id: true },
+    });
+    if (!postExists) throw ApiError.notFound("Post not found");
+
+    const key = { userId_postId: { userId, postId } };
+    const existingBookmark = await prisma.bookmark.findUnique({ where: key });
+
+    if (existingBookmark) {
+      await prisma.bookmark.delete({ where: key });
+      res.status(200).json({ status: "success", bookmarked: false });
+      return;
+    }
+
+    await prisma.bookmark.create({ data: { userId, postId } });
+    res.status(201).json({ status: "success", bookmarked: true });
+  },
+);
+
+export const getBookmarkedPosts = asyncHandler(
+  async (req: Request, res: Response): Promise<void> => {
+    const userId = req.user?.id;
+    if (!userId) throw ApiError.unauthorized("Authentication required");
+
+    const page = Math.max(1, parseInt(req.query.page as string) || 1);
+    const limit = Math.min(50, Math.max(1, parseInt(req.query.limit as string) || 20));
+    const where = { userId };
+    const [bookmarks, totalPosts] = await Promise.all([
+      prisma.bookmark.findMany({
+        where,
+        skip: (page - 1) * limit,
+        take: limit,
+        orderBy: { createdAt: "desc" },
+        include: {
+          post: {
+            include: {
+              author: { select: { id: true, username: true, avatarUrl: true } },
+              _count: { select: { likes: true, comments: true } },
+              likes: { where: { userId }, select: { id: true }, take: 1 },
+            },
+          },
+        },
+      }),
+      prisma.bookmark.count({ where }),
+    ]);
+
+    const totalPages = Math.ceil(totalPosts / limit);
+    res.status(200).json({
+      status: "success",
+      data: {
+        posts: bookmarks.map(({ post }) => ({
+          ...post,
+          isLiked: post.likes.length > 0,
+          isBookmarked: true,
+          likes: undefined,
+        })),
+        pagination: { page, limit, totalPosts, totalPages, hasNextPage: page < totalPages },
+      },
     });
   },
 );

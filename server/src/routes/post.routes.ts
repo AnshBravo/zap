@@ -5,13 +5,16 @@ import {
   getPostById,
   deletePost,
   getUploadUrl,
+  searchPosts,
 } from "../controllers/post.controller.js";
 import {
   toggleLike,
   addComment,
   getPostComments,
+  toggleBookmark,
+  getBookmarkedPosts,
 } from "../controllers/interaction.controller.js";
-import { protect } from "../middlewares/auth.middleware.js";
+import { optionalAuth, protect } from "../middlewares/auth.middleware.js";
 
 const router = Router();
 
@@ -19,15 +22,18 @@ const router = Router();
 router.post("/upload-url", protect, getUploadUrl);
 
 // Create & Feed
-router.get("/", getFeed);
+router.get("/bookmarks", protect, getBookmarkedPosts);
+router.get("/search", optionalAuth, searchPosts);
+router.get("/", optionalAuth, getFeed);
 router.post("/", protect, createPost);
 
 // Single Post Operations
-router.get("/:id", getPostById);
+router.get("/:id", optionalAuth, getPostById);
 router.delete("/:id", protect, deletePost);
 
 //Likes/comment routes
 router.post("/:postId/like", protect, toggleLike);
+router.post("/:postId/bookmark", protect, toggleBookmark);
 router.post("/:postId/comments", protect, addComment);
 router.get("/:postId/comments", getPostComments);
 

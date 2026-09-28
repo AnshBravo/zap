@@ -36,3 +36,29 @@ export const protect = asyncHandler(
     next();
   },
 );
+
+export const optionalAuth = asyncHandler(
+  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    const authorization = req.headers.authorization;
+    if (!authorization?.startsWith("Bearer ")) {
+      next();
+      return;
+    }
+
+    let decoded: ReturnType<typeof verifyToken>;
+    try {
+      decoded = verifyToken(authorization.slice("Bearer ".length));
+    } catch {
+      next();
+      return;
+    }
+
+    const currentUser = await prisma.user.findUnique({
+      where: { id: decoded.userId },
+      select: { id: true, username: true },
+    });
+
+    if (currentUser) req.user = currentUser;
+    next();
+  },
+);

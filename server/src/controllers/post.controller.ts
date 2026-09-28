@@ -91,6 +91,9 @@ export const createPost = asyncHandler(
             avatarUrl: true,
           },
         },
+        _count: {
+          select: { likes: true, comments: true },
+        },
       },
     });
 
@@ -114,26 +117,31 @@ export const getFeed = asyncHandler(
     );
     const skip = (page - 1) * limit;
 
+    const include = {
+      author: {
+        select: { id: true, username: true, avatarUrl: true },
+      },
+      _count: { select: { likes: true, comments: true } },
+      ...(req.user?.id && {
+        likes: {
+          where: { userId: req.user.id },
+          select: { id: true },
+          take: 1,
+        },
+        bookmarks: {
+          where: { userId: req.user.id },
+          select: { userId: true },
+          take: 1,
+        },
+      }),
+    };
+
     const [posts, totalPosts] = await Promise.all([
       prisma.post.findMany({
         skip,
         take: limit,
         orderBy: { createdAt: "desc" },
-        include: {
-          author: {
-            select: {
-              id: true,
-              username: true,
-              avatarUrl: true,
-            },
-          },
-          _count: {
-            select: {
-              likes: true,
-              comments: true,
-            },
-          },
-        },
+        include,
       }),
       prisma.post.count(),
     ]);
@@ -143,7 +151,11 @@ export const getFeed = asyncHandler(
     res.status(200).json({
       status: "success",
       data: {
-        posts,
+        posts: posts.map(({ likes, bookmarks, ...post }) => ({
+          ...post,
+          isLiked: Boolean(likes?.length),
+          isBookmarked: Boolean(bookmarks?.length),
+        })),
         pagination: {
           page,
           limit,
@@ -151,6 +163,49 @@ export const getFeed = asyncHandler(
           totalPages,
           hasNextPage: page < totalPages,
         },
+      },
+    });
+  },
+);
+
+export const searchPosts = asyncHandler(
+  async (req: Request, res: Response): Promise<void> => {
+    const query = typeof req.query.q === "string" ? req.query.q.trim() : "";
+    const page = Math.max(1, parseInt(req.query.page as string) || 1);
+    const limit = Math.min(50, Math.max(1, parseInt(req.query.limit as string) || 20));
+    if (!query) throw ApiError.badRequest("Search query is required.");
+
+    const where = { content: { contains: query, mode: "insensitive" as const } };
+    const [posts, totalPosts] = await Promise.all([
+      prisma.post.findMany({
+        where,
+        skip: (page - 1) * limit,
+        take: limit,
+        orderBy: { createdAt: "desc" },
+        include: {
+          author: { select: { id: true, username: true, avatarUrl: true } },
+          _count: { select: { likes: true, comments: true } },
+          ...(req.user?.id && {
+            likes: { where: { userId: req.user.id }, select: { id: true }, take: 1 },
+            bookmarks: { where: { userId: req.user.id }, select: { userId: true }, take: 1 },
+          }),
+        },
+      }),
+      prisma.post.count({ where }),
+    ]);
+
+    const totalPages = Math.ceil(totalPosts / limit);
+    res.status(200).json({
+      status: "success",
+      data: {
+        posts: posts.map((post) => ({
+          ...post,
+          isLiked: Boolean("likes" in post && post.likes.length),
+          isBookmarked: Boolean("bookmarks" in post && post.bookmarks.length),
+          likes: undefined,
+          bookmarks: undefined,
+        })),
+        pagination: { page, limit, totalPosts, totalPages, hasNextPage: page < totalPages },
       },
     });
   },
@@ -184,6 +239,18 @@ export const getPostById = asyncHandler(
             comments: true,
           },
         },
+        ...(req.user?.id && {
+          likes: {
+            where: { userId: req.user.id },
+            select: { id: true },
+            take: 1,
+          },
+          bookmarks: {
+            where: { userId: req.user.id },
+            select: { userId: true },
+            take: 1,
+          },
+        }),
       },
     });
 
@@ -193,7 +260,15 @@ export const getPostById = asyncHandler(
 
     res.status(200).json({
       status: "success",
-      data: { post },
+      data: {
+        post: {
+          ...post,
+          isLiked: Boolean("likes" in post && post.likes.length),
+          isBookmarked: Boolean("bookmarks" in post && post.bookmarks.length),
+          likes: undefined,
+          bookmarks: undefined,
+        },
+      },
     });
   },
 );

@@ -119,8 +119,7 @@ The token is verified in the auth middleware and attached to `req.user` for prot
 ```json
 {
   "status": "error",
-  "message": "Invalid email or password",
-  "statusCode": 401
+  "message": "Invalid email or password"
 }
 ```
 
@@ -280,7 +279,7 @@ The client must upload the file directly to `uploadUrl` with an HTTP `PUT` and t
 
 - Method: `GET`
 - Route: `/api/v1/posts`
-- Access: Public
+- Access: Public (optional bearer token adds viewer state)
 
 Query parameters:
 
@@ -314,7 +313,9 @@ Example response:
         "_count": {
           "likes": 5,
           "comments": 2
-        }
+        },
+        "isLiked": true,
+        "isBookmarked": false
       }
     ],
     "pagination": {
@@ -327,6 +328,17 @@ Example response:
   }
 }
 ```
+
+When a valid bearer token is supplied, each post also includes `isLiked` and `isBookmarked` for the current user. Without authentication both values are `false`.
+
+### Search posts
+
+- Method: `GET`
+- Route: `/api/v1/posts/search`
+- Access: Public (optional bearer token adds viewer state)
+- Query: `q` (required), `page` (default `1`), `limit` (default `20`, max `50`)
+
+Returns a paginated feed envelope containing posts whose text matches `q`.
 
 ### 6.3 Create a post
 
@@ -492,6 +504,22 @@ Query parameters:
 
 Only the comment owner can delete the comment.
 
+### 7.5 Toggle a saved post
+
+- Method: `POST`
+- Route: `/api/v1/posts/:postId/bookmark`
+- Access: Private
+- Response: `{ "status": "success", "bookmarked": true }` (or `false` when removed)
+
+### 7.6 Get saved posts
+
+- Method: `GET`
+- Route: `/api/v1/posts/bookmarks`
+- Access: Private
+- Query: `page` (default `1`), `limit` (default `20`, max `50`)
+
+Returns saved posts in the standard paginated feed envelope.
+
 ---
 
 ## 8. User Endpoints
@@ -515,14 +543,35 @@ Example response:
       "avatarUrl": "https://example.com/avatar.jpg",
       "createdAt": "2026-08-19T10:30:00.000Z",
       "_count": {
-        "posts": 12
-      }
+        "posts": 12,
+        "followers": 8,
+        "following": 24
+      },
+      "isFollowing": false
     }
   }
 }
 ```
 
-### 8.2 Update user profile
+When a bearer token is provided, `isFollowing` reflects the authenticated viewer’s relationship. The profile counters are returned directly in `_count`.
+
+### 8.2 Get posts by username
+
+- Method: `GET`
+- Route: `/api/v1/users/:username/posts`
+- Access: Public (optional bearer token adds viewer state)
+- Query: `page` (default `1`), `limit` (default `20`, max `50`)
+
+Returns the user’s complete post list as a paginated feed envelope.
+
+### 8.3 Search users
+
+- Method: `GET`
+- Route: `/api/v1/users/search`
+- Access: Public (optional bearer token includes `isFollowing` for each result)
+- Query: `q` (required; matches usernames case-insensitively)
+
+### 8.4 Update user profile
 
 - Method: `PATCH`
 - Route: `/api/v1/users/me`
@@ -537,7 +586,7 @@ Request body:
 }
 ```
 
-### 8.3 Toggle follow or unfollow
+### 8.5 Toggle follow or unfollow
 
 - Method: `POST`
 - Route: `/api/v1/users/:targetUserId`
@@ -565,13 +614,13 @@ Example response when unfollowing:
 }
 ```
 
-### 8.4 Get followers
+### 8.6 Get followers
 
 - Method: `GET`
 - Route: `/api/v1/users/:targetUserId/followers`
 - Access: Public
 
-### 8.5 Get following
+### 8.7 Get following
 
 - Method: `GET`
 - Route: `/api/v1/users/:targetUserId/following`
@@ -721,11 +770,14 @@ The backend expects environment variables such as:
 | Login              | `POST`   | `/api/v1/auth/login`                    | Public  |
 | Current user       | `GET`    | `/api/v1/auth/me`                       | Private |
 | Feed               | `GET`    | `/api/v1/posts`                         | Public  |
+| Search posts       | `GET`    | `/api/v1/posts/search`                  | Public  |
+| Saved posts        | `GET`    | `/api/v1/posts/bookmarks`               | Private |
 | Request upload URL | `POST`   | `/api/v1/posts/upload-url`              | Private |
 | Create post        | `POST`   | `/api/v1/posts`                         | Private |
 | Get post           | `GET`    | `/api/v1/posts/:id`                     | Public  |
 | Delete post        | `DELETE` | `/api/v1/posts/:id`                     | Private |
 | Toggle like        | `POST`   | `/api/v1/posts/:postId/like`            | Private |
+| Toggle bookmark    | `POST`   | `/api/v1/posts/:postId/bookmark`        | Private |
 | Add comment        | `POST`   | `/api/v1/posts/:postId/comments`        | Private |
 | Get comments       | `GET`    | `/api/v1/posts/:postId/comments`        | Public  |
 | Delete comment     | `DELETE` | `/api/v1/comments/:commentId`           | Private |
@@ -734,6 +786,8 @@ The backend expects environment variables such as:
 | Followers          | `GET`    | `/api/v1/users/:targetUserId/followers` | Public  |
 | Following          | `GET`    | `/api/v1/users/:targetUserId/following` | Public  |
 | User profile       | `GET`    | `/api/v1/users/:username`               | Public  |
+| User posts         | `GET`    | `/api/v1/users/:username/posts`         | Public  |
+| Search users       | `GET`    | `/api/v1/users/search`                  | Public  |
 | Chat history       | `GET`    | `/api/v1/messages/:otherUserId`         | Private |
 
 ---
@@ -747,5 +801,7 @@ The backend expects environment variables such as:
 - Normalize all returned IDs and timestamps before rendering UI state.
 - For media posts, request an upload URL, upload directly to S3, then create the post with the returned `mediaUrl` and `mediaKey`.
 - Media URLs require readable S3 objects or a configured CDN/read-access strategy.
+- The bookmark schema migration is additive and is present locally as `20260928120000_add_bookmarks`; it has not been applied to the configured remote Neon database. Apply it through the deployment migration process before using Saved/bookmark endpoints against that database.
+- Notifications are delivered as transient Socket.IO events and are not stored by the backend. The client currently retains received items in that browser’s local storage.
 
 Last updated: 2026-09-06
