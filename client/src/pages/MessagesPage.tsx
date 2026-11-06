@@ -1,4 +1,3 @@
-import { useState, useEffect, useRef } from "react";
 import {
   Search,
   Send,
@@ -8,219 +7,38 @@ import {
   Loader2,
 } from "lucide-react";
 import { motion } from "framer-motion";
-import { useAuth } from "../context/useAuth";
-import { useSocket } from "../context/useSocket";
-import { messagesApi } from "../api/messages";
-import { usersApi } from "../api/users";
-import { getApiErrorMessage } from "../api/errors";
-import type { Message } from "../types";
-
-interface ChatUser {
-  id: string;
-  username: string;
-  avatarUrl?: string | null;
-  isOnline?: boolean;
-}
-
-interface MessageItem {
-  id: string;
-  senderId: string;
-  content: string;
-  createdAt: string;
-}
-
-interface Conversation {
-  id: string;
-  participant: ChatUser;
-  lastMessage: string;
-  updatedAt: string;
-  unreadCount: number;
-}
+import { useMessages } from "../hooks/useMessages";
 
 export default function MessagesPage() {
-  const { user } = useAuth();
-  const { socket, isConnected } = useSocket();
-  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const {
+    user,
+    isConnected,
+    messagesEndRef,
+    searchQuery,
+    setSearchQuery,
+    selectedConversation,
+    setSelectedConversation,
+    inputText,
+    setInputText,
+    messages,
+    conversationsLoading,
+    messagesLoading,
+    searchError,
+    sendError,
+    filteredConversations,
+    startConversation,
+    sendMessage,
+  } = useMessages();
 
-  const [searchQuery, setSearchQuery] = useState("");
-  const [selectedConversation, setSelectedConversation] =
-    useState<Conversation | null>(null);
-  const [inputText, setInputText] = useState("");
-  const [conversations, setConversations] = useState<Conversation[]>([]);
-  const [messages, setMessages] = useState<Record<string, MessageItem[]>>({});
-  const [conversationsLoading, setConversationsLoading] = useState(false);
-  const [messagesLoading, setMessagesLoading] = useState(false);
-  const [searchError, setSearchError] = useState<string | null>(null);
-  const [sendError, setSendError] = useState<string | null>(null);
-
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  const handleSearch = (event: React.FormEvent) => {
+    event.preventDefault();
+    void startConversation(searchQuery);
   };
 
-  useEffect(() => {
-    scrollToBottom();
-  }, [messages, selectedConversation]);
-
-  useEffect(() => {
-    if (!socket) return;
-
-    const appendMessage = (incoming: Message) => {
-      if (!user) return;
-
-      const incomingMessage: MessageItem = {
-        id: incoming.id,
-        senderId: incoming.senderId,
-        content: incoming.content,
-        createdAt: new Date(incoming.createdAt).toLocaleTimeString([], {
-          hour: "2-digit",
-          minute: "2-digit",
-        }),
-      };
-
-      const conversationId =
-        incoming.senderId === user.id ? incoming.receiverId : incoming.senderId;
-
-      setMessages((prev) => ({
-        ...prev,
-        [conversationId]: (prev[conversationId] || []).some(
-          (item) => item.id === incoming.id,
-        )
-          ? prev[conversationId]
-          : [...(prev[conversationId] || []), incomingMessage],
-      }));
-
-      setConversations((prev) => {
-        const existing = prev.find(
-          (conversation) => conversation.id === conversationId,
-        );
-        if (existing) {
-          return prev.map((conversation) =>
-            conversation.id === conversationId
-              ? {
-                  ...conversation,
-                  lastMessage: incomingMessage.content,
-                  updatedAt: "Just now",
-                }
-              : conversation,
-          );
-        }
-
-        return prev;
-      });
-    };
-
-    const handleSocketError = (payload: { message?: string }) => {
-      setSendError(payload.message || "Message could not be delivered.");
-    };
-
-    socket.on("receive_message", appendMessage);
-    socket.on("message_sent", appendMessage);
-    socket.on("error", handleSocketError);
-    return () => {
-      socket.off("receive_message", appendMessage);
-      socket.off("message_sent", appendMessage);
-      socket.off("error", handleSocketError);
-    };
-  }, [user, socket]);
-
-  const startConversationWithUser = async (username: string) => {
-    const cleanUsername = username.trim().replace(/^@/, "");
-    if (!cleanUsername) {
-      setSearchError(null);
-      return;
-    }
-
-    try {
-      setConversationsLoading(true);
-      setSearchError(null);
-
-      const profileRes = await usersApi.getProfile(cleanUsername);
-      const participant = profileRes.data.user;
-      const conversationId = participant.id;
-
-      const conversation: Conversation = {
-        id: conversationId,
-        participant: {
-          id: participant.id,
-          username: participant.username,
-          avatarUrl: participant.avatarUrl,
-          isOnline: true,
-        },
-        lastMessage: "Start the conversation",
-        updatedAt: "Now",
-        unreadCount: 0,
-      };
-
-      setConversations((prev) => {
-        const exists = prev.some((item) => item.id === conversationId);
-        return exists ? prev : [conversation, ...prev];
-      });
-
-      setSelectedConversation(conversation);
-
-      try {
-        setMessagesLoading(true);
-        const res = await messagesApi.getChatHistory(conversationId, 1, 50);
-        const formattedMessages: MessageItem[] = res.data.messages.map(
-          (msg: Message) => ({
-            id: msg.id,
-            senderId: msg.senderId,
-            content: msg.content,
-            createdAt: new Date(msg.createdAt).toLocaleTimeString([], {
-              hour: "2-digit",
-              minute: "2-digit",
-            }),
-          }),
-        );
-
-        setMessages((prev) => ({
-          ...prev,
-          [conversationId]: formattedMessages,
-        }));
-      } catch (historyError) {
-        console.error("Failed to load chat history:", historyError);
-        setMessages((prev) => ({
-          ...prev,
-          [conversationId]: [],
-        }));
-      } finally {
-        setMessagesLoading(false);
-      }
-    } catch (error: unknown) {
-      setSearchError(
-        getApiErrorMessage(error, "Could not find a user with that username."),
-      );
-    } finally {
-      setConversationsLoading(false);
-    }
+  const handleSendMessage = (event: React.FormEvent) => {
+    event.preventDefault();
+    sendMessage();
   };
-
-  const handleSearch = async (e: React.FormEvent) => {
-    e.preventDefault();
-    await startConversationWithUser(searchQuery);
-  };
-
-  const handleSendMessage = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!inputText.trim() || !selectedConversation || !user) return;
-
-    if (!socket || !isConnected) {
-      setSendError("You are offline. Reconnect before sending a message.");
-      return;
-    }
-
-    const content = inputText.trim();
-    const conversationId = selectedConversation.id;
-    setSendError(null);
-    socket.emit("send_message", { receiverId: conversationId, content });
-    setInputText("");
-  };
-
-  const filteredConversations = conversations.filter((conversation) =>
-    conversation.participant.username
-      .toLowerCase()
-      .includes(searchQuery.toLowerCase()),
-  );
 
   return (
     <div className="w-full h-screen flex flex-col sm:flex-row overflow-hidden bg-white dark:bg-black">

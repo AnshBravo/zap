@@ -42,20 +42,31 @@ export interface UploadUrlResponse {
   };
 }
 
-export const getUploadUrl = async (
+const getUploadUrl = async (
   fileType: string,
 ): Promise<UploadUrlResponse> => {
   const response = await api.post("/posts/upload-url", { fileType });
   return response.data;
 };
 
-export const uploadMediaToS3 = async (
+const uploadMediaToS3 = async (
   uploadUrl: string,
   file: File,
 ): Promise<void> => {
   await axios.put(uploadUrl, file, {
     headers: { "Content-Type": file.type },
   });
+};
+
+export const uploadMedia = async (
+  file: File,
+): Promise<{ mediaUrl: string; mediaKey: string }> => {
+  const response = await getUploadUrl(file.type);
+  await uploadMediaToS3(response.data.uploadUrl, file);
+  return {
+    mediaUrl: response.data.mediaUrl,
+    mediaKey: response.data.mediaKey,
+  };
 };
 
 export interface ToggleLikeResponse {
@@ -133,11 +144,6 @@ export const createPost = async (
 };
 
 export const postsApi = {
-  // POST /api/v1/posts/upload-url
-  getUploadUrl,
-
-  uploadMedia: uploadMediaToS3,
-
   // GET /api/v1/posts?page=1&limit=10
   getFeed: async (page = 1, limit = 10): Promise<FeedResponse> => {
     const response = await api.get("/posts", { params: { page, limit } });

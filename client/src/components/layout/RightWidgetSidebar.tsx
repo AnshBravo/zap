@@ -1,16 +1,8 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React from "react";
 import { MessageSquare, X, Send, Loader2, Trash2 } from "lucide-react";
 import { Link } from "react-router-dom";
-import {
-  postsApi,
-  addComment,
-  deleteComment,
-  getComments,
-} from "../../api/posts";
-import { useAuth } from "../../context/useAuth";
-import { usersApi } from "../../api/users";
-import { getApiErrorMessage } from "../../api/errors";
-import type { Post, Comment } from "../../types";
+import { useRightWidget } from "../../hooks/useRightWidget";
+import type { Post } from "../../types";
 
 interface RightWidgetSidebarProps {
   selectedPost: Post | null;
@@ -21,124 +13,26 @@ export function RightWidgetSidebar({
   selectedPost,
   onCloseComments,
 }: RightWidgetSidebarProps) {
-  const { user } = useAuth();
-  const [posts, setPosts] = useState<Post[]>([]);
-  const [comments, setComments] = useState<Comment[]>([]);
-  const [commentDraft, setCommentDraft] = useState("");
-  const [isLoadingComments, setIsLoadingComments] = useState(false);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [commentError, setCommentError] = useState<string | null>(null);
-  const [followState, setFollowState] = useState<Record<string, boolean>>({});
-  const [suggestionError, setSuggestionError] = useState<string | null>(null);
+  const {
+    user,
+    feedError,
+    suggestions,
+    followState,
+    suggestionError,
+    toggleFollow,
+    comments,
+    commentDraft,
+    setCommentDraft,
+    isLoadingComments,
+    isSubmitting,
+    commentError,
+    addComment,
+    deleteComment,
+  } = useRightWidget(selectedPost);
 
-  // Fetch background feed for top trends
-  useEffect(() => {
-    const loadFeed = async () => {
-      try {
-        const response = await postsApi.getFeed(1, 20);
-        setPosts(response.data.posts || []);
-      } catch (error) {
-        console.error("Failed to load sidebar feed:", error);
-      }
-    };
-    loadFeed();
-  }, []);
-
-  // Fetch comments whenever the active post changes
-  useEffect(() => {
-    if (!selectedPost) return;
-
-    const fetchComments = async () => {
-      try {
-        setIsLoadingComments(true);
-        const res = await getComments(selectedPost.id, 1, 20);
-        setComments(res.data.comments || []);
-      } catch (err) {
-        console.error("Failed to load comments:", err);
-        setCommentError(
-          getApiErrorMessage(err, "Comments could not be loaded."),
-        );
-      } finally {
-        setIsLoadingComments(false);
-      }
-    };
-
-    fetchComments();
-  }, [selectedPost]);
-
-  const suggestions = useMemo(() => {
-    const unique = new Map<string, Post["author"]>();
-    posts.forEach((post) => {
-      if (post.author.id !== user?.id) unique.set(post.author.id, post.author);
-    });
-    return [...unique.values()].slice(0, 4);
-  }, [posts, user?.id]);
-
-  useEffect(() => {
-    let cancelled = false;
-    Promise.all(
-      suggestions.map((suggestion) =>
-        usersApi
-          .getProfile(suggestion.username)
-          .then((response) => response.data.user),
-      ),
-    )
-      .then((profiles) => {
-        if (!cancelled) {
-          setFollowState(
-            Object.fromEntries(
-              profiles.map((profile) => [
-                profile.id,
-                profile.isFollowing ?? false,
-              ]),
-            ),
-          );
-        }
-      })
-      .catch(() => undefined);
-    return () => {
-      cancelled = true;
-    };
-  }, [suggestions]);
-
-  const toggleFollow = async (userId: string) => {
-    try {
-      setSuggestionError(null);
-      const response = await usersApi.toggleFollow(userId);
-      setFollowState((current) => ({
-        ...current,
-        [userId]: response.following,
-      }));
-    } catch {
-      setSuggestionError("Follow status could not be updated.");
-    }
-  };
-
-  const handleAddComment = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!selectedPost || !commentDraft.trim() || isSubmitting) return;
-
-    try {
-      setIsSubmitting(true);
-      setCommentError(null);
-      const res = await addComment(selectedPost.id, commentDraft.trim());
-      setComments((prev) => [res.data.comment, ...prev]);
-      setCommentDraft("");
-    } catch (err: unknown) {
-      setCommentError(getApiErrorMessage(err, "Comment could not be posted."));
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  const handleDeleteComment = async (commentId: string) => {
-    try {
-      await deleteComment(commentId);
-      setComments((prev) => prev.filter((comment) => comment.id !== commentId));
-      setCommentError(null);
-    } catch (err: unknown) {
-      setCommentError(getApiErrorMessage(err, "Comment could not be deleted."));
-    }
+  const handleAddComment = (event: React.FormEvent) => {
+    event.preventDefault();
+    void addComment();
   };
 
   return (
@@ -182,6 +76,11 @@ export function RightWidgetSidebar({
         <h2 className="mb-3 text-xs font-bold uppercase text-pure-gray-light dark:text-pure-gray-dark">
           Suggested accounts
         </h2>
+        {feedError && (
+          <p role="alert" className="mb-2 text-[10px] text-red-600">
+            {feedError}
+          </p>
+        )}
         {suggestionError && (
           <p role="alert" className="mb-2 text-[10px] text-red-600">
             {suggestionError}
@@ -304,7 +203,7 @@ export function RightWidgetSidebar({
                       </span>
                       {comment.userId === user?.id && (
                         <button
-                          onClick={() => handleDeleteComment(comment.id)}
+                          onClick={() => void deleteComment(comment.id)}
                           className="text-pure-gray-light hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
                         >
                           <Trash2 size={12} />

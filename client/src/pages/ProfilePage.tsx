@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { useAuth } from "../context/useAuth";
 import {
@@ -13,169 +13,42 @@ import {
   X,
 } from "lucide-react";
 import { motion } from "framer-motion";
-import { usersApi } from "../api/users";
-import { postsApi } from "../api/posts";
-import { getApiErrorMessage } from "../api/errors";
-import type { Post, User } from "../types";
+import type { Post } from "../types";
 import EditProfileModal from "../components/EditProfileModal";
 import PostCard from "../components/feed/PostCard";
+import { useProfile } from "../hooks/useProfile";
+import { isVideoMedia } from "../utils/media";
 
 export default function ProfilePage() {
   const { username } = useParams<{ username?: string }>();
   const { user: currentUser, updateUser } = useAuth();
 
-  const [activeTab, setActiveTab] = useState<"posts" | "shorties" | "saved">(
-    "posts",
-  );
-  const [profile, setProfile] = useState<User | null>(null);
-  const [loading, setLoading] = useState<boolean>(true);
-  const [postsLoading, setPostsLoading] = useState<boolean>(true);
-  const [error, setError] = useState<string | null>(null);
-
-  const [isFollowing, setIsFollowing] = useState<boolean>(false);
-  const [followLoading, setFollowLoading] = useState<boolean>(false);
-  const [actionError, setActionError] = useState<string | null>(null);
   const [editModalOpen, setEditModalOpen] = useState<boolean>(false);
   const [selectedPost, setSelectedPost] = useState<Post | null>(null);
-
-  const [followersCount, setFollowersCount] = useState<number>(0);
-  const [followingCount, setFollowingCount] = useState<number>(0);
-
-  // Tab Content States
-  const [profilePosts, setProfilePosts] = useState<Post[]>([]);
-  const [tabError, setTabError] = useState<string | null>(null);
 
   const targetUsername = username || currentUser?.username;
   const isOwnProfile = Boolean(
     !username || (currentUser?.username && username === currentUser.username),
   );
-
-  const handleProfilePostDeleted = (postId: string) => {
-    setProfilePosts((prev) => prev.filter((post) => post.id !== postId));
-    setProfile((current) =>
-      current
-        ? {
-            ...current,
-            _count: {
-              ...current._count,
-              posts: Math.max(0, (current._count?.posts ?? 0) - 1),
-            },
-          }
-        : current,
-    );
-  };
-
-  useEffect(() => {
-    let isMounted = true;
-
-    const fetchUserProfile = async () => {
-      if (!targetUsername) {
-        setLoading(false);
-        return;
-      }
-
-      try {
-        setLoading(true);
-        setError(null);
-
-        const res = await usersApi.getProfile(targetUsername);
-
-        if (isMounted) {
-          const targetUser: User = res.data.user;
-          setProfile(targetUser);
-          setFollowersCount(targetUser._count?.followers ?? 0);
-          setFollowingCount(targetUser._count?.following ?? 0);
-          setIsFollowing(targetUser.isFollowing ?? false);
-        }
-      } catch (err: unknown) {
-        if (isMounted) {
-          console.error("Failed to fetch profile:", err);
-          setError(getApiErrorMessage(err, "User profile not found."));
-        }
-      } finally {
-        if (isMounted) {
-          setLoading(false);
-        }
-      }
-    };
-
-    fetchUserProfile();
-
-    return () => {
-      isMounted = false;
-    };
-  }, [targetUsername]);
-
-  const activeProfileTab =
-    !isOwnProfile && activeTab === "saved" ? "posts" : activeTab;
-
-  useEffect(() => {
-    if (!profile) return;
-    let cancelled = false;
-    const request =
-      activeProfileTab === "saved"
-        ? postsApi.getBookmarks(1, 50)
-        : usersApi.getUserPosts(profile.username, 1, 50);
-
-    request
-      .then((response) => {
-        if (cancelled) return;
-        const posts = response.data.posts || [];
-        setProfilePosts(
-          activeProfileTab === "shorties"
-            ? posts.filter((post) =>
-                /\.(mp4|webm)(?:$|\?)/i.test(post.mediaUrl || ""),
-              )
-            : posts,
-        );
-        setTabError(null);
-      })
-      .catch((requestError: unknown) => {
-        if (!cancelled) {
-          setProfilePosts([]);
-          setTabError(
-            getApiErrorMessage(
-              requestError,
-              "This profile section could not be loaded.",
-            ),
-          );
-        }
-      })
-      .finally(() => {
-        if (!cancelled) setPostsLoading(false);
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [profile, activeProfileTab]);
-
-  const handleTabChange = (tab: "posts" | "shorties" | "saved") => {
-    setPostsLoading(true);
-    setTabError(null);
-    setActiveTab(tab);
-  };
-
-  const handleToggleFollow = async () => {
-    if (!profile || followLoading) return;
-
-    try {
-      setFollowLoading(true);
-      setActionError(null);
-      const res = await usersApi.toggleFollow(profile.id);
-
-      setIsFollowing(res.following);
-      setFollowersCount((prev) =>
-        res.following ? prev + 1 : Math.max(0, prev - 1),
-      );
-    } catch (err: unknown) {
-      setActionError(
-        getApiErrorMessage(err, "Follow status could not be updated."),
-      );
-    } finally {
-      setFollowLoading(false);
-    }
-  };
+  const {
+    activeTab,
+    activeProfileTab,
+    changeTab,
+    profile,
+    setProfile,
+    loading,
+    postsLoading,
+    error,
+    isFollowing,
+    followLoading,
+    actionError,
+    followersCount,
+    followingCount,
+    profilePosts,
+    tabError,
+    toggleFollow,
+    removeProfilePost,
+  } = useProfile(targetUsername, isOwnProfile);
 
   const tabs = [
     { id: "posts", label: "Posts", icon: Grid },
@@ -253,7 +126,7 @@ export default function ProfilePage() {
           ) : (
             <motion.button
               type="button"
-              onClick={handleToggleFollow}
+              onClick={() => void toggleFollow()}
               disabled={followLoading}
               whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.98 }}
@@ -338,7 +211,7 @@ export default function ProfilePage() {
               <button
                 key={tab.id}
                 type="button"
-                onClick={() => handleTabChange(tab.id)}
+                onClick={() => changeTab(tab.id)}
                 className={`flex-1 py-3 text-xs sm:text-sm font-bold transition-all relative flex items-center justify-center gap-2 ${
                   activeTab === tab.id
                     ? "text-black dark:text-white"
@@ -382,7 +255,7 @@ export default function ProfilePage() {
               className="group relative aspect-square overflow-hidden bg-white text-left dark:bg-black"
             >
               {post.mediaUrl ? (
-                /\.(mp4|webm)(?:$|\?)/i.test(post.mediaUrl) ? (
+                isVideoMedia(post.mediaUrl) ? (
                   <video
                     src={post.mediaUrl}
                     muted
@@ -438,7 +311,7 @@ export default function ProfilePage() {
             <PostCard
               post={selectedPost}
               onDelete={(postId) => {
-                handleProfilePostDeleted(postId);
+                removeProfilePost(postId);
                 setSelectedPost(null);
               }}
             />

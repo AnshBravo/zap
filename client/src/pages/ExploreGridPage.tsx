@@ -1,36 +1,17 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Heart, Loader2, MessageCircle, X } from "lucide-react";
 import PostCard from "../components/feed/PostCard";
-import { postsApi } from "../api/posts";
-import { getApiErrorMessage } from "../api/errors";
+import { usePostFeed } from "../hooks/usePostFeed";
+import { isVideoMedia } from "../utils/media";
 import type { Post } from "../types";
 
 export default function ExploreGridPage() {
-  const [posts, setPosts] = useState<Post[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const { posts, loading, error, removePost } = usePostFeed(
+    50,
+    false,
+    "Explore could not be loaded.",
+  );
   const [selectedPost, setSelectedPost] = useState<Post | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    postsApi
-      .getFeed(1, 50)
-      .then((response) => {
-        if (!cancelled) setPosts(response.data.posts);
-      })
-      .catch((requestError: unknown) => {
-        if (!cancelled)
-          setError(
-            getApiErrorMessage(requestError, "Explore could not be loaded."),
-          );
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
 
   return (
     <section className="min-h-screen">
@@ -61,7 +42,7 @@ export default function ExploreGridPage() {
               className="group relative aspect-square overflow-hidden bg-white text-left dark:bg-black"
             >
               {post.mediaUrl ? (
-                /\.(mp4|webm)(?:$|\?)/i.test(post.mediaUrl) ? (
+                isVideoMedia(post.mediaUrl) ? (
                   <video
                     src={post.mediaUrl}
                     muted
@@ -121,9 +102,7 @@ export default function ExploreGridPage() {
             <PostCard
               post={selectedPost}
               onDelete={(postId) => {
-                setPosts((current) =>
-                  current.filter((post) => post.id !== postId),
-                );
+                removePost(postId);
                 setSelectedPost(null);
               }}
             />

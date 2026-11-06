@@ -1,10 +1,7 @@
-import React, { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
-import { useAuth } from "../context/useAuth";
+import { Link } from "react-router-dom";
 import { useTheme } from "../context/useTheme";
 import { Sun, Moon, ArrowRight, AlertCircle } from "lucide-react";
 import { motion } from "framer-motion";
-import { getApiErrorMessage } from "../api/errors";
 import {
   PageTransition,
   FadeIn,
@@ -12,44 +9,21 @@ import {
 } from "../components/common/Animations";
 import LogoBlack from "../assets/Zap logo black.png";
 import LogoWhite from "../assets/Zap logo white.png";
+import { useAuthForm } from "../hooks/useAuthForm";
 
 export default function RegisterPage() {
-  const { register } = useAuth();
   const { theme, toggleTheme } = useTheme();
-  const navigate = useNavigate();
-
-  const [username, setUsername] = useState("");
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [error, setError] = useState<string | null>(null);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError(null);
-
-    if (!username.trim() || !email.trim() || !password.trim()) {
-      setError("Please fill in all fields.");
-      return;
-    }
-
-    if (password.length < 6) {
-      setError("Password must be at least 6 characters long.");
-      return;
-    }
-
-    try {
-      setIsSubmitting(true);
-      await register(username, email, password);
-      navigate("/");
-    } catch (err: unknown) {
-      setError(
-        getApiErrorMessage(err, "Registration failed. Please try again."),
-      );
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
+  const {
+    username,
+    setUsername,
+    email,
+    setEmail,
+    password,
+    setPassword,
+    error,
+    submitting,
+    submit,
+  } = useAuthForm("register");
 
   return (
     <PageTransition className="min-h-screen flex flex-col justify-center items-center bg-white dark:bg-black text-black dark:text-white p-4 transition-colors">
@@ -91,7 +65,13 @@ export default function RegisterPage() {
         )}
 
         {/* Form */}
-        <form onSubmit={handleSubmit} className="space-y-5">
+        <form
+          onSubmit={(event) => {
+            event.preventDefault();
+            void submit();
+          }}
+          className="space-y-5"
+        >
           <div>
             <label className="block text-xs font-semibold uppercase tracking-wider text-pure-gray-light dark:text-pure-gray-dark mb-2">
               Username
@@ -138,10 +118,10 @@ export default function RegisterPage() {
             whileHover={{ scale: 1.01 }}
             whileTap={{ scale: 0.98 }}
             type="submit"
-            disabled={isSubmitting}
+            disabled={submitting}
             className="w-full mt-2 py-3 px-4 flex items-center justify-center gap-2 rounded-xl bg-black text-white dark:bg-white dark:text-black font-semibold text-sm transition-all hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {isSubmitting ? (
+            {submitting ? (
               "Creating account..."
             ) : (
               <>

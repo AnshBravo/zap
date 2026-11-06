@@ -1,10 +1,9 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef } from "react";
 import { Image, Smile, Send, X, Loader2 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAuth } from "../../context/useAuth";
-import { createPost, getUploadUrl, uploadMediaToS3 } from "../../api/posts";
-import { getApiErrorMessage } from "../../api/errors";
 import type { Post } from "../../types";
+import { usePostComposer } from "../../hooks/usePostComposer";
 
 interface PostComposerProps {
   onPostCreated?: (newPost: Post) => void;
@@ -18,14 +17,24 @@ export default function PostComposer({
   const { user } = useAuth();
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
-
-  const [content, setContent] = useState("");
-  const [isLoading, setIsLoading] = useState<boolean>(false);
-  const [uploadProgress, setUploadProgress] = useState<string | null>(null);
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
-  const [mediaFile, setMediaFile] = useState<File | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const {
+    content,
+    setContent,
+    loading: isLoading,
+    uploadProgress,
+    previewUrl,
+    mediaFile,
+    error,
+    setError,
+    showEmojiPicker,
+    setShowEmojiPicker,
+    remainingChars,
+    charPercentage,
+    selectMedia,
+    removeMedia,
+    appendEmoji,
+    publish,
+  } = usePostComposer(onPostCreated);
 
   useEffect(() => {
     if (autoFocus) {
@@ -45,108 +54,22 @@ export default function PostComposer({
     }
   }, [content]);
 
-  const MAX_CHARS = 200;
-  const remainingChars = MAX_CHARS - content.length;
   const isOverLimit = remainingChars < 0;
-  const charPercentage = Math.min(100, (content.length / MAX_CHARS) * 100);
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file) return;
-
-    const allowedTypes = [
-      "image/jpeg",
-      "image/png",
-      "image/gif",
-      "image/webp",
-      "video/mp4",
-      "video/webm",
-    ];
-
-    if (!allowedTypes.includes(file.type)) {
-      setError(
-        "Please upload a supported image or video format (JPG, PNG, GIF, WebP, MP4, WebM).",
-      );
-      if (fileInputRef.current) fileInputRef.current.value = "";
-      return;
-    }
-
-    if (file.size > 15 * 1024 * 1024) {
-      setError("File size exceeds 15MB limit.");
-      if (fileInputRef.current) fileInputRef.current.value = "";
-      return;
-    }
-
-    setError(null);
-    if (previewUrl) URL.revokeObjectURL(previewUrl);
-    const url = URL.createObjectURL(file);
-    setPreviewUrl(url);
-    setMediaFile(file);
+    if (file) selectMedia(file);
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
-  const removeMedia = () => {
-    if (previewUrl) URL.revokeObjectURL(previewUrl);
-    setPreviewUrl(null);
-    setMediaFile(null);
-  };
-
   const handleEmojiSelect = (emoji: string) => {
-    setContent((prev) => prev + emoji);
-    setShowEmojiPicker(false);
+    appendEmoji(emoji);
     textareaRef.current?.focus();
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!content.trim() || isOverLimit || isLoading) return;
-
-    setIsLoading(true);
-    setError(null);
-
-    try {
-      let mediaData: { mediaUrl: string; mediaKey: string } | undefined;
-
-      if (mediaFile) {
-        setUploadProgress("Preparing upload...");
-        const uploadResponse = await getUploadUrl(mediaFile.type);
-
-        setUploadProgress("Uploading media...");
-        await uploadMediaToS3(uploadResponse.data.uploadUrl, mediaFile);
-
-        mediaData = {
-          mediaUrl: uploadResponse.data.mediaUrl,
-          mediaKey: uploadResponse.data.mediaKey,
-        };
-      }
-
-      setUploadProgress("Publishing...");
-      const response = await createPost({
-        content: content.trim(),
-        ...mediaData,
-      });
-      const createdPost = response.data.post as Post;
-
-      if (onPostCreated) {
-        onPostCreated(createdPost);
-      }
-
-      setContent("");
-      if (previewUrl) URL.revokeObjectURL(previewUrl);
-      setPreviewUrl(null);
-      setMediaFile(null);
-    } catch (err: unknown) {
-      console.error("Failed to publish Zap:", err);
-      setError(
-        getApiErrorMessage(
-          err,
-          "Your Zap could not be published. Please try again.",
-        ),
-      );
-    } finally {
-      setIsLoading(false);
-      setUploadProgress(null);
-    }
+    void publish();
   };
 
   const commonEmojis = ["👍", "❤️", "🔥", "🚀", "✨", "😂", "🎉", "💯"];

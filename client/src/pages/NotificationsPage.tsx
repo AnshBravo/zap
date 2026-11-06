@@ -1,73 +1,18 @@
-import { useState, useEffect } from "react";
 import { Heart, MessageCircle, UserPlus, Zap, BellOff } from "lucide-react";
 import { motion } from "framer-motion";
-import { useSocket } from "../context/useSocket";
 import { useAuth } from "../context/useAuth";
 import type { NotificationItem } from "../types";
-
-type NotificationPayload = Omit<NotificationItem, "id" | "createdAt" | "read">;
+import { useNotifications } from "../hooks/useNotifications";
 
 export default function NotificationsPage() {
-  const { socket } = useSocket();
   const { user } = useAuth();
-  const storageKey = user?.id
-    ? `zap_notifications_${user.id}`
-    : "zap_notifications";
-  const [activeTab, setActiveTab] = useState<"all" | "mentions">("all");
-  const [notifications, setNotifications] = useState<NotificationItem[]>(() => {
-    try {
-      const id = JSON.parse(localStorage.getItem("zap_user") || "null")?.id as
-        | string
-        | undefined;
-      const key = id ? `zap_notifications_${id}` : "zap_notifications";
-      return JSON.parse(
-        localStorage.getItem(key) || "[]",
-      ) as NotificationItem[];
-    } catch {
-      return [];
-    }
-  });
-
-  useEffect(() => {
-    localStorage.setItem(storageKey, JSON.stringify(notifications));
-  }, [notifications, storageKey]);
-
-  useEffect(() => {
-    if (!socket) return;
-
-    const handleNotification = (payload: NotificationPayload) => {
-      const normalized: NotificationItem = {
-        id: `${payload.type}-${payload.postId || payload.followerId || Date.now()}-${Date.now()}`,
-        type: payload.type,
-        message: payload.message || "New activity on Zap.",
-        postId: payload.postId,
-        commentId: payload.commentId,
-        followerId: payload.followerId,
-        triggeredBy: payload.triggeredBy,
-        createdAt: new Date().toISOString(),
-        read: false,
-      };
-
-      setNotifications((prev) => [normalized, ...prev]);
-    };
-
-    socket.on("notification", handleNotification);
-
-    return () => {
-      socket.off("notification", handleNotification);
-    };
-  }, [socket]);
-
-  const markAllAsRead = () => {
-    setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
-  };
-
-  const filteredNotifications = notifications.filter((item) => {
-    if (activeTab === "mentions") {
-      return item.type === "COMMENT";
-    }
-    return true;
-  });
+  const {
+    activeTab,
+    setActiveTab,
+    notifications,
+    filteredNotifications,
+    markAllAsRead,
+  } = useNotifications(user?.id);
 
   const getNotificationIcon = (type: NotificationItem["type"]) => {
     switch (type) {

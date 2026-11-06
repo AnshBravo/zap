@@ -1,10 +1,7 @@
-import { useEffect, useMemo, useState } from "react";
 import { ArrowLeft, Loader2, UserPlus, UserCheck } from "lucide-react";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import { useAuth } from "../context/useAuth";
-import { usersApi } from "../api/users";
-import { getApiErrorMessage } from "../api/errors";
-import type { User } from "../types";
+import { useFollowList } from "../hooks/useFollowList";
 
 export default function FollowListPage() {
   const { username } = useParams<{ username?: string }>();
@@ -12,80 +9,18 @@ export default function FollowListPage() {
   const navigate = useNavigate();
   const { user: currentUser } = useAuth();
 
-  const activeTab = useMemo(
-    () =>
-      location.pathname.endsWith("/following") ? "following" : "followers",
-    [location.pathname],
-  );
-
-  const targetUsername = username || currentUser?.username;
-  const [users, setUsers] = useState<User[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [followState, setFollowState] = useState<Record<string, boolean>>({});
-
-  useEffect(() => {
-    const fetchList = async () => {
-      if (!targetUsername) {
-        setLoading(false);
-        return;
-      }
-
-      try {
-        setLoading(true);
-        setError(null);
-
-        const profileRes = await usersApi.getProfile(targetUsername);
-        const targetUserId = profileRes.data.user.id;
-
-        const [followersRes, followingRes] = await Promise.all([
-          usersApi.getFollowers(targetUserId, 1, 50),
-          usersApi.getFollowing(targetUserId, 1, 50),
-        ]);
-
-        const followers = followersRes.data.followers || [];
-        const following = followingRes.data.following || [];
-        const followingIds = new Set(following.map((userItem) => userItem.id));
-
-        const nextUsers = activeTab === "followers" ? followers : following;
-
-        setUsers(nextUsers);
-        setFollowState(
-          Object.fromEntries(following.map((userItem) => [userItem.id, true])),
-        );
-
-        if (activeTab === "followers") {
-          setFollowState((prev) => {
-            const nextState: Record<string, boolean> = { ...prev };
-            for (const userItem of followers) {
-              nextState[userItem.id] = followingIds.has(userItem.id);
-            }
-            return nextState;
-          });
-        }
-      } catch (err: unknown) {
-        console.error("Failed to load follow list:", err);
-        setError(
-          getApiErrorMessage(err, "We couldn't load this list right now."),
-        );
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchList();
-  }, [activeTab, targetUsername]);
-
-  const handleToggleFollow = async (targetUserId: string) => {
-    if (!currentUser || targetUserId === currentUser.id) return;
-
-    try {
-      const res = await usersApi.toggleFollow(targetUserId);
-      setFollowState((prev) => ({ ...prev, [targetUserId]: res.following }));
-    } catch (err) {
-      console.error("Failed to toggle follow:", err);
-    }
-  };
+  const activeTab = location.pathname.endsWith("/following")
+    ? "following"
+    : "followers";
+  const {
+    targetUsername,
+    users,
+    loading,
+    error,
+    followState,
+    pendingIds,
+    toggleFollow,
+  } = useFollowList(username, currentUser?.username, activeTab);
 
   const goBackToProfile = () => {
     if (username) {
@@ -205,7 +140,8 @@ export default function FollowListPage() {
 
                 {!isCurrentUser && (
                   <button
-                    onClick={() => handleToggleFollow(userItem.id)}
+                    disabled={pendingIds.has(userItem.id)}
+                    onClick={() => void toggleFollow(userItem.id)}
                     className={`px-3 py-1.5 rounded-full text-xs font-bold transition-all ${
                       isFollowing
                         ? "border border-pure-border-light dark:border-pure-border-dark text-black dark:text-white"

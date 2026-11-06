@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import {
   Clapperboard,
@@ -14,10 +14,8 @@ import {
   VolumeX,
   X,
 } from "lucide-react";
-import type { Post, Comment } from "../types";
-import { postsApi } from "../api/posts";
-import { usersApi } from "../api/users";
-import { getApiErrorMessage } from "../api/errors";
+import type { Post } from "../types";
+import { useShortieReelActions, useShorties } from "../hooks/useShorties";
 
 function Reel({
   post,
@@ -30,24 +28,17 @@ function Reel({
   const [muted, setMuted] = useState(true);
   const [playing, setPlaying] = useState(false);
   const [progress, setProgress] = useState(0);
-  const [liked, setLiked] = useState(post.isLiked ?? false);
-  const [likes, setLikes] = useState(post._count.likes);
-  const [following, setFollowing] = useState(false);
-  const [pending, setPending] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    let active = true;
-    usersApi
-      .getProfile(post.author.username)
-      .then((response) => {
-        if (active) setFollowing(response.data.user.isFollowing ?? false);
-      })
-      .catch(() => undefined);
-    return () => {
-      active = false;
-    };
-  }, [post.author.username]);
+  const {
+    liked,
+    likes,
+    likeLoading,
+    following,
+    pending,
+    error,
+    toggleLike,
+    toggleFollow,
+    share,
+  } = useShortieReelActions(post);
 
   useEffect(() => {
     const video = videoRef.current;
@@ -66,50 +57,6 @@ function Reel({
     observer.observe(video);
     return () => observer.disconnect();
   }, []);
-
-  const toggleLike = async () => {
-    if (pending) return;
-    try {
-      setPending(true);
-      const response = await postsApi.toggleLike(post.id);
-      setLiked(response.liked);
-      setLikes((current) => Math.max(0, current + (response.liked ? 1 : -1)));
-    } catch (requestError: unknown) {
-      setError(getApiErrorMessage(requestError, "Like could not be updated."));
-    } finally {
-      setPending(false);
-    }
-  };
-
-  const toggleFollow = async () => {
-    if (pending) return;
-    try {
-      setPending(true);
-      const response = await usersApi.toggleFollow(post.author.id);
-      setFollowing(response.following);
-    } catch (requestError: unknown) {
-      setError(
-        getApiErrorMessage(requestError, "Follow status could not be updated."),
-      );
-    } finally {
-      setPending(false);
-    }
-  };
-
-  const share = async () => {
-    const url = `${window.location.origin}/shorties#${post.id}`;
-    try {
-      if (navigator.share)
-        await navigator.share({
-          title: `@${post.author.username}`,
-          text: post.content,
-          url,
-        });
-      else await navigator.clipboard.writeText(url);
-    } catch {
-      setError("Share was cancelled or unavailable.");
-    }
-  };
 
   return (
     <article className="relative mx-auto flex h-full w-full max-w-120 snap-center items-end overflow-hidden bg-black text-white">
@@ -178,7 +125,7 @@ function Reel({
             </Link>
             <button
               type="button"
-              disabled={pending}
+              disabled={likeLoading}
               onClick={() => void toggleFollow()}
               className="flex shrink-0 items-center gap-1 border border-white/70 px-2.5 py-1 text-[11px] font-semibold disabled:opacity-50"
             >
@@ -253,77 +200,20 @@ function Reel({
 }
 
 export default function ShortiesPage() {
-  const [posts, setPosts] = useState<Post[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [activePost, setActivePost] = useState<Post | null>(null);
-  const [comments, setComments] = useState<Comment[]>([]);
-  const [draft, setDraft] = useState("");
-  const [commentError, setCommentError] = useState<string | null>(null);
-  const [commentLoading, setCommentLoading] = useState(false);
-
-  useEffect(() => {
-    let cancelled = false;
-    postsApi
-      .getFeed(1, 50)
-      .then((response) => {
-        if (!cancelled)
-          setPosts(
-            response.data.posts.filter((post) =>
-              /\.(mp4|webm)(?:$|\?)/i.test(post.mediaUrl || ""),
-            ),
-          );
-      })
-      .catch((requestError: unknown) => {
-        if (!cancelled)
-          setError(
-            getApiErrorMessage(requestError, "Shorties could not be loaded."),
-          );
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  useEffect(() => {
-    if (!activePost) return;
-    let cancelled = false;
-    postsApi
-      .getComments(activePost.id, 1, 50)
-      .then((response) => {
-        if (!cancelled) setComments(response.data.comments);
-      })
-      .catch((requestError: unknown) => {
-        if (!cancelled)
-          setCommentError(
-            getApiErrorMessage(requestError, "Comments could not be loaded."),
-          );
-      })
-      .finally(() => {
-        if (!cancelled) setCommentLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [activePost]);
-
-  const addComment = async (event: FormEvent) => {
-    event.preventDefault();
-    if (!activePost || !draft.trim()) return;
-    try {
-      const response = await postsApi.addComment(activePost.id, draft.trim());
-      setComments((current) => [response.data.comment, ...current]);
-      setDraft("");
-      setCommentError(null);
-    } catch (requestError: unknown) {
-      setCommentError(
-        getApiErrorMessage(requestError, "Comment could not be posted."),
-      );
-    }
-  };
+  const {
+    posts,
+    loading,
+    error,
+    activePost,
+    setActivePost,
+    comments,
+    draft,
+    setDraft,
+    commentError,
+    commentLoading,
+    openComments,
+    addComment,
+  } = useShorties();
 
   return (
     <section className="relative h-[calc(100dvh-4rem)] overflow-hidden bg-black lg:h-screen">
@@ -352,15 +242,7 @@ export default function ShortiesPage() {
               key={post.id}
               className="h-[calc(100dvh-7rem)] snap-center lg:h-[calc(100dvh-2rem)]"
             >
-              <Reel
-                post={post}
-                onComment={(selected) => {
-                  setCommentLoading(true);
-                  setComments([]);
-                  setActivePost(selected);
-                  setCommentError(null);
-                }}
-              />
+              <Reel post={post} onComment={openComments} />
             </div>
           ))}
         </div>
@@ -417,7 +299,10 @@ export default function ShortiesPage() {
               )}
             </div>
             <form
-              onSubmit={addComment}
+              onSubmit={(event) => {
+                event.preventDefault();
+                void addComment();
+              }}
               className="flex gap-2 border-t border-pure-border-light p-3 dark:border-pure-border-dark"
             >
               <input

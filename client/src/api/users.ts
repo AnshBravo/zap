@@ -22,16 +22,8 @@ export interface ToggleFollowResponse {
 export interface UserListResponse {
   status: string;
   data: {
-    followers?: Array<{
-      id: string;
-      username: string;
-      avatarUrl?: string | null;
-    }>;
-    following?: Array<{
-      id: string;
-      username: string;
-      avatarUrl?: string | null;
-    }>;
+    followers?: Array<Pick<User, "id" | "username" | "avatarUrl" | "bio">>;
+    following?: Array<Pick<User, "id" | "username" | "avatarUrl" | "bio">>;
     pagination: {
       page: number;
       limit: number;

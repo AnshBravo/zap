@@ -1,10 +1,7 @@
-import { useState } from "react";
 import { X, Loader2 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
-import { usersApi } from "../api/users";
-import { getApiErrorMessage } from "../api/errors";
-import { getUploadUrl, uploadMediaToS3 } from "../api/posts";
 import type { User } from "../types";
+import { useEditProfile } from "../hooks/useEditProfile";
 
 interface EditProfileModalProps {
   isOpen: boolean;
@@ -19,62 +16,20 @@ export default function EditProfileModal({
   profile,
   onUpdate,
 }: EditProfileModalProps) {
-  const [bio, setBio] = useState(profile.bio || "");
-  const [avatarUrl, setAvatarUrl] = useState(profile.avatarUrl || "");
-  const [avatarFile, setAvatarFile] = useState<File | null>(null);
-  const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const {
+    bio,
+    setBio,
+    avatarUrl,
+    setAvatarUrl,
+    avatarFile,
+    avatarPreview,
+    saving,
+    error,
+    chooseAvatar,
+    save,
+  } = useEditProfile(profile, onUpdate, onClose);
 
   const BIO_MAX_LENGTH = 160;
-
-  const chooseAvatar = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-    if (!file.type.startsWith("image/")) {
-      setError("Choose an image file for your profile photo.");
-      return;
-    }
-    if (file.size > 5 * 1024 * 1024) {
-      setError("Profile photos must be 5 MB or smaller.");
-      return;
-    }
-    if (avatarPreview) URL.revokeObjectURL(avatarPreview);
-    setAvatarFile(file);
-    setAvatarPreview(URL.createObjectURL(file));
-    setError(null);
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    try {
-      setSaving(true);
-      setError(null);
-
-      let nextAvatarUrl = avatarUrl.trim();
-      if (avatarFile) {
-        const upload = await getUploadUrl(avatarFile.type);
-        await uploadMediaToS3(upload.data.uploadUrl, avatarFile);
-        nextAvatarUrl = upload.data.mediaUrl;
-      }
-
-      const res = await usersApi.updateProfile({
-        bio: bio.trim(),
-        avatarUrl: nextAvatarUrl,
-      });
-
-      // Pass the updated user object back to the parent Profile page state
-      onUpdate(res.data.user);
-      onClose();
-    } catch (err: unknown) {
-      console.error("Failed to update profile:", err);
-      setError(
-        getApiErrorMessage(err, "Something went wrong. Please try again."),
-      );
-    } finally {
-      setSaving(false);
-    }
-  };
 
   return (
     <AnimatePresence>
@@ -117,7 +72,13 @@ export default function EditProfileModal({
             )}
 
             {/* Input Form */}
-            <form onSubmit={handleSubmit} className="space-y-4">
+            <form
+              onSubmit={(event) => {
+                event.preventDefault();
+                void save();
+              }}
+              className="space-y-4"
+            >
               {/* Avatar URL Input Field */}
               <div className="space-y-1.5">
                 <label className="text-xs font-bold uppercase text-pure-gray-light">
@@ -140,7 +101,11 @@ export default function EditProfileModal({
                     <input
                       type="file"
                       accept="image/jpeg,image/png,image/webp,image/gif"
-                      onChange={chooseAvatar}
+                      onChange={(event) => {
+                        const file = event.target.files?.[0];
+                        if (file) chooseAvatar(file);
+                        event.currentTarget.value = "";
+                      }}
                       className="sr-only"
                     />
                   </label>
@@ -154,11 +119,7 @@ export default function EditProfileModal({
                   type="url"
                   placeholder="Or paste an image URL"
                   value={avatarUrl}
-                  onChange={(event) => {
-                    setAvatarUrl(event.target.value);
-                    setAvatarFile(null);
-                    setAvatarPreview(null);
-                  }}
+                  onChange={(event) => setAvatarUrl(event.target.value)}
                   className="w-full border border-pure-border-light bg-pure-hover-light px-3.5 py-2.5 text-sm focus:border-black focus:outline-none dark:border-pure-border-dark dark:bg-pure-hover-dark dark:focus:border-white"
                 />
               </div>

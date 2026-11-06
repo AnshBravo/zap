@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Link, useOutletContext } from "react-router-dom";
 import {
   MessageSquare,
@@ -10,10 +10,12 @@ import {
   Loader2,
 } from "lucide-react";
 import type { AppLayoutContext } from "../layout/AppLayout";
-import type { Comment, Post } from "../../types";
-import { postsApi } from "../../api/posts";
-import { getApiErrorMessage } from "../../api/errors";
+import type { Post } from "../../types";
 import { useAuth } from "../../context/useAuth";
+import { usePostComments } from "../../hooks/usePostComments";
+import { usePostCardActions } from "../../hooks/usePostCardActions";
+import { usePostLikes } from "../../hooks/usePostLikes";
+import { isVideoMedia } from "../../utils/media";
 
 function MobileInlineComments({
   postId,
@@ -23,67 +25,24 @@ function MobileInlineComments({
   onCountChange: (change: number) => void;
 }) {
   const { user } = useAuth();
-  const [comments, setComments] = useState<Comment[]>([]);
-  const [draft, setDraft] = useState("");
-  const [loading, setLoading] = useState(true);
-  const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    postsApi
-      .getComments(postId, 1, 20)
-      .then((response) => {
-        if (!cancelled) setComments(response.data.comments);
-      })
-      .catch((requestError: unknown) => {
-        if (!cancelled) {
-          setError(
-            getApiErrorMessage(requestError, "Comments could not be loaded."),
-          );
-        }
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [postId]);
+  const {
+    comments,
+    draft,
+    setDraft,
+    loading,
+    submitting,
+    error,
+    addComment,
+    deleteComment,
+  } = usePostComments(postId);
 
   const submitComment = async (event: React.FormEvent) => {
     event.preventDefault();
-    if (!draft.trim() || submitting) return;
-
-    try {
-      setSubmitting(true);
-      setError(null);
-      const response = await postsApi.addComment(postId, draft.trim());
-      setComments((current) => [response.data.comment, ...current]);
-      setDraft("");
-      onCountChange(1);
-    } catch (requestError: unknown) {
-      setError(
-        getApiErrorMessage(requestError, "Comment could not be posted."),
-      );
-    } finally {
-      setSubmitting(false);
-    }
+    if (await addComment()) onCountChange(1);
   };
 
   const removeComment = async (commentId: string) => {
-    try {
-      await postsApi.deleteComment(commentId);
-      setComments((current) =>
-        current.filter((comment) => comment.id !== commentId),
-      );
-      onCountChange(-1);
-    } catch (requestError: unknown) {
-      setError(
-        getApiErrorMessage(requestError, "Comment could not be deleted."),
-      );
-    }
+    if (await deleteComment(commentId)) onCountChange(-1);
   };
 
   return (
@@ -167,21 +126,30 @@ export default function PostCard({
 }) {
   const { user } = useAuth();
   const context = useOutletContext<AppLayoutContext>();
+  const {
+    liked: isLiked,
+    likes: likesCount,
+    loading: isLiking,
+    error: likeError,
+    toggleLike,
+  } = usePostLikes(post);
+  const {
+    bookmarked: isBookmarked,
+    bookmarking: isBookmarking,
+    deleting: isDeleting,
+    error: actionError,
+    toggleBookmark,
+    deletePost,
+    sharePost,
+  } = usePostCardActions(post, onDelete);
 
   const selectedPost = context?.selectedPost;
   const handleToggleComments = context?.handleToggleComments;
 
   // Local interaction states
   const [showMobileComments, setShowMobileComments] = useState(false);
-  const [isLiked, setIsLiked] = useState(post.isLiked ?? false);
-  const [isBookmarked, setIsBookmarked] = useState(post.isBookmarked ?? false);
-  const [isLiking, setIsLiking] = useState(false);
-  const [isBookmarking, setIsBookmarking] = useState(false);
-  const [isDeleting, setIsDeleting] = useState(false);
-  const [interactionError, setInteractionError] = useState<string | null>(null);
 
   // Counter states
-  const [likesCount, setLikesCount] = useState(post._count?.likes ?? 0);
   const [commentsCount, setCommentsCount] = useState(
     post._count?.comments ?? 0,
   );
@@ -193,78 +161,6 @@ export default function PostCard({
       handleToggleComments?.(post);
     } else {
       setShowMobileComments((prev) => !prev);
-    }
-  };
-
-  const handleLike = async () => {
-    if (isLiking) return;
-    try {
-      setIsLiking(true);
-      setInteractionError(null);
-      const response = await postsApi.toggleLike(post.id);
-      setIsLiked(response.liked);
-      setLikesCount((current) =>
-        Math.max(0, current + (response.liked ? 1 : -1)),
-      );
-    } catch (error: unknown) {
-      setInteractionError(
-        getApiErrorMessage(error, "Like could not be updated."),
-      );
-    } finally {
-      setIsLiking(false);
-    }
-  };
-
-  const handleBookmark = async () => {
-    if (isBookmarking) return;
-    try {
-      setIsBookmarking(true);
-      setInteractionError(null);
-      const response = await postsApi.toggleBookmark(post.id);
-      setIsBookmarked(response.bookmarked);
-    } catch (error: unknown) {
-      setInteractionError(
-        getApiErrorMessage(error, "Saved post could not be updated."),
-      );
-    } finally {
-      setIsBookmarking(false);
-    }
-  };
-
-  const handleDelete = async () => {
-    if (isDeleting || !window.confirm("Delete this post?")) return;
-    try {
-      setIsDeleting(true);
-      setInteractionError(null);
-      await postsApi.deletePost(post.id);
-      onDelete?.(post.id);
-    } catch (error: unknown) {
-      setInteractionError(
-        getApiErrorMessage(error, "Post could not be deleted."),
-      );
-    } finally {
-      setIsDeleting(false);
-    }
-  };
-
-  const handleShare = async () => {
-    try {
-      if (navigator.share) {
-        await navigator.share({
-          title: `Post by @${post.author?.username || "user"}`,
-          text: post.content,
-          url: `${window.location.origin}/#post-${post.id}`,
-        });
-      } else {
-        await navigator.clipboard.writeText(
-          `${window.location.origin}/#post-${post.id}`,
-        );
-      }
-    } catch (error: unknown) {
-      if (error instanceof Error && error.name === "AbortError") return;
-      setInteractionError(
-        getApiErrorMessage(error, "Post could not be shared."),
-      );
     }
   };
 
@@ -318,7 +214,7 @@ export default function PostCard({
               <button
                 type="button"
                 disabled={isDeleting}
-                onClick={() => void handleDelete()}
+                onClick={() => void deletePost()}
                 aria-label="Delete post"
                 title="Delete post"
                 className="p-2 text-pure-gray-light hover:text-red-600 disabled:opacity-40"
@@ -340,7 +236,7 @@ export default function PostCard({
           {/* Optional Media */}
           {post.mediaUrl && (
             <div className="mt-3 overflow-hidden border border-pure-border-light dark:border-pure-border-dark bg-black">
-              {/\.(mp4|webm)(?:$|\?)/i.test(post.mediaUrl) ? (
+              {isVideoMedia(post.mediaUrl) ? (
                 <video
                   src={post.mediaUrl}
                   controls
@@ -359,9 +255,9 @@ export default function PostCard({
             </div>
           )}
 
-          {interactionError && (
+          {(actionError || likeError) && (
             <p role="alert" className="mt-2 text-xs text-red-600">
-              {interactionError}
+              {actionError || likeError}
             </p>
           )}
 
@@ -370,7 +266,7 @@ export default function PostCard({
             {/* Like Button */}
             <button
               type="button"
-              onClick={() => void handleLike()}
+              onClick={() => void toggleLike()}
               disabled={isLiking}
               className={`flex items-center gap-1.5 text-xs font-medium transition-colors hover:text-rose-500 group ${
                 isLiked ? "text-rose-500" : ""
@@ -399,7 +295,7 @@ export default function PostCard({
             {/* Bookmark Button */}
             <button
               type="button"
-              onClick={() => void handleBookmark()}
+              onClick={() => void toggleBookmark()}
               disabled={isBookmarking}
               className={`flex items-center text-xs font-medium transition-colors hover:text-amber-500 group ${
                 isBookmarked ? "text-amber-500" : ""
@@ -416,7 +312,7 @@ export default function PostCard({
             {/* Share Button */}
             <button
               type="button"
-              onClick={handleShare}
+              onClick={() => void sharePost()}
               className="flex items-center text-xs font-medium transition-colors hover:text-sky-500 group"
             >
               <div className="p-1.5 rounded-full group-hover:bg-sky-500/10">

@@ -1,5 +1,4 @@
-import { useState } from "react";
-import { Outlet, useLocation, useNavigate } from "react-router-dom";
+import { Outlet } from "react-router-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import { X } from "lucide-react";
 import { Sidebar } from "./Sidebar";
@@ -8,6 +7,7 @@ import { MobileNavbar } from "./MobileNavbar";
 import { PageTransition } from "../common/Animations";
 import type { Post } from "../../types";
 import PostComposer from "../feed/PostComposer";
+import { useAppLayout } from "../../hooks/useAppLayout";
 
 export interface AppLayoutContext {
   selectedPost: Post | null;
@@ -16,16 +16,15 @@ export interface AppLayoutContext {
 }
 
 export function AppLayout() {
-  const navigate = useNavigate();
-  const { pathname } = useLocation();
-  const isShortiesRoute = pathname === "/shorties";
-  const [selectedPost, setSelectedPost] = useState<Post | null>(null);
-  const [createOpen, setCreateOpen] = useState(false);
-
-  const handleToggleComments = (post: Post) => {
-    // Toggle off if clicking the same post, otherwise set active post
-    setSelectedPost((prev) => (prev?.id === post.id ? null : post));
-  };
+  const {
+    isShortiesRoute,
+    selectedPost,
+    setSelectedPost,
+    createOpen,
+    setCreateOpen,
+    toggleComments,
+    handlePostCreated,
+  } = useAppLayout();
 
   return (
     <div className="min-h-screen bg-white dark:bg-black text-black dark:text-white flex justify-center transition-colors">
@@ -42,7 +41,7 @@ export function AppLayout() {
                 {
                   selectedPost,
                   setSelectedPost,
-                  handleToggleComments,
+                  handleToggleComments: toggleComments,
                 } satisfies AppLayoutContext
               }
             />
@@ -87,13 +86,7 @@ export function AppLayout() {
               </h2>
               <PostComposer
                 autoFocus
-                onPostCreated={(post) => {
-                  setCreateOpen(false);
-                  window.dispatchEvent(
-                    new CustomEvent("zap:post-created", { detail: post }),
-                  );
-                  navigate("/");
-                }}
+                onPostCreated={handlePostCreated}
               />
             </motion.section>
           </div>

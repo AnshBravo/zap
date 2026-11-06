@@ -1,12 +1,9 @@
 import { useState, type FormEvent } from "react";
 import { Link } from "react-router-dom";
 import { Loader2, Search, UserCheck, UserPlus } from "lucide-react";
-import { postsApi } from "../api/posts";
-import { usersApi } from "../api/users";
-import { getApiErrorMessage } from "../api/errors";
 import PostCard from "../components/feed/PostCard";
-import type { Post, User } from "../types";
 import { useAuth } from "../context/useAuth";
+import { useSearch } from "../hooks/useSearch";
 
 type SearchTab = "people" | "posts";
 
@@ -14,62 +11,21 @@ export default function SearchPage() {
   const { user: currentUser } = useAuth();
   const [query, setQuery] = useState("");
   const [activeTab, setActiveTab] = useState<SearchTab>("people");
-  const [users, setUsers] = useState<User[]>([]);
-  const [posts, setPosts] = useState<Post[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [followingIds, setFollowingIds] = useState<Set<string>>(new Set());
-  const [pendingId, setPendingId] = useState<string | null>(null);
+  const {
+    users,
+    posts,
+    loading,
+    error,
+    followingIds,
+    pendingId,
+    search: searchUsersAndPosts,
+    toggleFollow,
+    removePost,
+  } = useSearch();
 
   const search = async (event: FormEvent) => {
     event.preventDefault();
-    const cleanQuery = query.trim();
-    if (!cleanQuery) return;
-
-    try {
-      setLoading(true);
-      setError(null);
-      const [userResponse, postResponse] = await Promise.all([
-        usersApi.searchUsers(cleanQuery),
-        postsApi.searchPosts(cleanQuery),
-      ]);
-      const foundUsers = userResponse.data.users;
-      setUsers(foundUsers);
-      setPosts(postResponse.data.posts);
-      setFollowingIds(
-        new Set(
-          foundUsers.filter((user) => user.isFollowing).map((user) => user.id),
-        ),
-      );
-    } catch (requestError: unknown) {
-      setError(
-        getApiErrorMessage(requestError, "Search is unavailable right now."),
-      );
-      setUsers([]);
-      setPosts([]);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const toggleFollow = async (userId: string) => {
-    if (pendingId) return;
-    try {
-      setPendingId(userId);
-      const response = await usersApi.toggleFollow(userId);
-      setFollowingIds((current) => {
-        const next = new Set(current);
-        if (response.following) next.add(userId);
-        else next.delete(userId);
-        return next;
-      });
-    } catch (requestError: unknown) {
-      setError(
-        getApiErrorMessage(requestError, "Follow status could not be updated."),
-      );
-    } finally {
-      setPendingId(null);
-    }
+    await searchUsersAndPosts(query);
   };
 
   return (
@@ -179,11 +135,7 @@ export default function SearchPage() {
             <PostCard
               key={post.id}
               post={post}
-              onDelete={(postId) =>
-                setPosts((current) =>
-                  current.filter((item) => item.id !== postId),
-                )
-              }
+              onDelete={removePost}
             />
           ))}
         </div>
