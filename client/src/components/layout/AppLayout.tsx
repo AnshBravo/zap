@@ -1,4 +1,4 @@
-import { Outlet } from "react-router-dom";
+import { Outlet, useLocation } from "react-router-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import { X } from "lucide-react";
 import { Sidebar } from "./Sidebar";
@@ -16,6 +16,7 @@ export interface AppLayoutContext {
 }
 
 export function AppLayout() {
+  const { pathname } = useLocation();
   const {
     selectedPost,
     setSelectedPost,
@@ -48,10 +49,12 @@ export function AppLayout() {
         </main>
 
         {/* Right Widget Sidebar */}
-        <RightWidgetSidebar
-          selectedPost={selectedPost}
-          onCloseComments={() => setSelectedPost(null)}
-        />
+        {!pathname.startsWith("/messages") && (
+          <RightWidgetSidebar
+            selectedPost={selectedPost}
+            onCloseComments={() => setSelectedPost(null)}
+          />
+        )}
       </div>
 
       {/* Mobile Navigation */}
