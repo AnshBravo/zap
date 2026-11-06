@@ -17,7 +17,6 @@ export interface AppLayoutContext {
 
 export function AppLayout() {
   const {
-    isShortiesRoute,
     selectedPost,
     setSelectedPost,
     createOpen,
@@ -49,12 +48,10 @@ export function AppLayout() {
         </main>
 
         {/* Right Widget Sidebar */}
-        {!isShortiesRoute && (
-          <RightWidgetSidebar
-            selectedPost={selectedPost}
-            onCloseComments={() => setSelectedPost(null)}
-          />
-        )}
+        <RightWidgetSidebar
+          selectedPost={selectedPost}
+          onCloseComments={() => setSelectedPost(null)}
+        />
       </div>
 
       {/* Mobile Navigation */}

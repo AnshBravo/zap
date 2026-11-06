@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import { getApiErrorMessage } from "../api/errors";
 import { usersApi } from "../api/users";
-import { usePostComments } from "./usePostComments";
 import { usePostLikes } from "./usePostLikes";
 import type { Post } from "../types";
 import { isVideoMedia } from "../utils/media";
@@ -10,26 +9,11 @@ import { usePostFeed } from "./usePostFeed";
 export function useShorties() {
   const feed = usePostFeed(50, false, "Shorties could not be loaded.");
   const posts = feed.posts.filter((post) => isVideoMedia(post.mediaUrl));
-  const [activePost, setActivePost] = useState<Post | null>(null);
-  const postComments = usePostComments(activePost?.id ?? null, 50);
-
-  const openComments = (post: Post) => {
-    setActivePost({ ...post });
-  };
 
   return {
     posts,
     loading: feed.loading,
     error: feed.error,
-    activePost,
-    setActivePost,
-    comments: postComments.comments,
-    draft: postComments.draft,
-    setDraft: postComments.setDraft,
-    commentError: postComments.error,
-    commentLoading: postComments.loading,
-    openComments,
-    addComment: postComments.addComment,
   };
 }
 

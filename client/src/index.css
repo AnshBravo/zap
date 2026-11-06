@@ -7,6 +7,15 @@
 /* Enable class-based dark mode in Tailwind v4 */
 @custom-variant dark (&:where(.dark, .dark *));
 
+* {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+*::-webkit-scrollbar {
+  display: none;
+}
+
 /* Pure Black & White Theme Configuration */
 @theme {
   --font-sans: "Space Grotesk", system-ui, sans-serif;

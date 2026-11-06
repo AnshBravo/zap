@@ -1,10 +1,9 @@
 import { useState } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import type { Post } from "../types";
 
 export function useAppLayout() {
   const navigate = useNavigate();
-  const { pathname } = useLocation();
   const [selectedPost, setSelectedPost] = useState<Post | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
 
@@ -19,7 +18,6 @@ export function useAppLayout() {
   };
 
   return {
-    isShortiesRoute: pathname === "/shorties",
     selectedPost,
     setSelectedPost,
     createOpen,

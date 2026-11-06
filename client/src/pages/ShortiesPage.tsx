@@ -12,10 +12,11 @@ import {
   UserPlus,
   Volume2,
   VolumeX,
-  X,
 } from "lucide-react";
 import type { Post } from "../types";
 import { useShortieReelActions, useShorties } from "../hooks/useShorties";
+import { useOutletContext } from "react-router-dom";
+import type { AppLayoutContext } from "../components/layout/AppLayout";
 
 function Reel({
   post,
@@ -200,20 +201,8 @@ function Reel({
 }
 
 export default function ShortiesPage() {
-  const {
-    posts,
-    loading,
-    error,
-    activePost,
-    setActivePost,
-    comments,
-    draft,
-    setDraft,
-    commentError,
-    commentLoading,
-    openComments,
-    addComment,
-  } = useShorties();
+  const { posts, loading, error } = useShorties();
+  const { handleToggleComments } = useOutletContext<AppLayoutContext>();
 
   return (
     <section className="relative h-[calc(100dvh-4rem)] overflow-hidden bg-black lg:h-screen">
@@ -242,7 +231,7 @@ export default function ShortiesPage() {
               key={post.id}
               className="h-[calc(100dvh-7rem)] snap-center lg:h-[calc(100dvh-2rem)]"
             >
-              <Reel post={post} onComment={openComments} />
+              <Reel post={post} onComment={handleToggleComments} />
             </div>
           ))}
         </div>
@@ -252,77 +241,6 @@ export default function ShortiesPage() {
         </div>
       )}
 
-      {activePost && (
-        <div
-          className="fixed inset-0 z-40 flex items-end justify-center bg-black/60 sm:items-center"
-          onClick={() => setActivePost(null)}
-        >
-          <section
-            className="max-h-[82vh] w-full max-w-lg overflow-hidden border border-pure-border-light bg-white dark:border-pure-border-dark dark:bg-black"
-            onClick={(event) => event.stopPropagation()}
-          >
-            <header className="flex items-center justify-between border-b border-pure-border-light px-4 py-3 dark:border-pure-border-dark">
-              <h2 className="text-sm font-bold">Comments</h2>
-              <button
-                type="button"
-                onClick={() => setActivePost(null)}
-                aria-label="Close comments"
-              >
-                <X size={18} />
-              </button>
-            </header>
-            {commentError && (
-              <p role="alert" className="px-4 pt-3 text-xs text-red-600">
-                {commentError}
-              </p>
-            )}
-            <div className="max-h-[55vh] space-y-3 overflow-y-auto p-4">
-              {commentLoading ? (
-                <Loader2 size={18} className="mx-auto animate-spin" />
-              ) : (
-                comments.map((comment) => (
-                  <p key={comment.id} className="text-sm">
-                    <Link
-                      to={`/profile/${comment.user.username}`}
-                      className="mr-2 font-bold"
-                    >
-                      @{comment.user.username}
-                    </Link>
-                    {comment.content}
-                  </p>
-                ))
-              )}
-              {!commentLoading && !comments.length && (
-                <p className="text-center text-sm text-pure-gray-light dark:text-pure-gray-dark">
-                  No comments yet.
-                </p>
-              )}
-            </div>
-            <form
-              onSubmit={(event) => {
-                event.preventDefault();
-                void addComment();
-              }}
-              className="flex gap-2 border-t border-pure-border-light p-3 dark:border-pure-border-dark"
-            >
-              <input
-                value={draft}
-                onChange={(event) => setDraft(event.target.value)}
-                maxLength={500}
-                placeholder="Add a comment..."
-                className="min-w-0 flex-1 bg-transparent px-2 text-sm outline-none"
-              />
-              <button
-                type="submit"
-                disabled={!draft.trim()}
-                className="px-3 text-sm font-semibold disabled:opacity-40"
-              >
-                Post
-              </button>
-            </form>
-          </section>
-        </div>
-      )}
     </section>
   );
 }
