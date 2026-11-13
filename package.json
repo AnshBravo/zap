@@ -3,6 +3,7 @@
     "socket.io": "^4.8.3"
   },
   "devDependencies": {
-    "@types/socket.io": "^3.0.1"
+    "@types/socket.io": "^3.0.1",
+    "rollup-plugin-visualizer": "^7.1.3"
   }
 }

@@ -1,5 +1,5 @@
 import React from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { AnimatePresence, m } from "framer-motion";
 
 interface PageTransitionProps {
   children: React.ReactNode;
@@ -12,15 +12,15 @@ export function PageTransition({
   className = "",
 }: PageTransitionProps) {
   return (
-    <motion.div
+    <m.div
       initial={{ opacity: 0, y: 8, scale: 0.99 }}
       animate={{ opacity: 1, y: 0, scale: 1 }}
-      exit={{ opacity: 9, y: -8, scale: 0.99 }}
+      exit={{ opacity: 0, y: -8, scale: 0.99 }}
       transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
       className={className}
     >
       {children}
-    </motion.div>
+    </m.div>
   );
 }
 
@@ -35,14 +35,14 @@ export function FadeIn({
   className: string;
 }) {
   return (
-    <motion.div
+    <m.div
       initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.3, delay, ease: [0.16, 1, 0.3, 1] }}
       className={className}
     >
       {children}
-    </motion.div>
+    </m.div>
   );
 }
 
@@ -50,7 +50,7 @@ export function FadeIn({
 export function AnimatedAlert({ children }: { children: React.ReactNode }) {
   return (
     <AnimatePresence>
-      <motion.div
+      <m.div
         initial={{ opacity: 0, height: 0, y: -6 }}
         animate={{ opacity: 1, height: "auto", y: 0 }}
         exit={{ opacity: 0, height: 0, y: -6 }}
@@ -58,7 +58,7 @@ export function AnimatedAlert({ children }: { children: React.ReactNode }) {
         className="overflow-hidden"
       >
         {children}
-      </motion.div>
+      </m.div>
     </AnimatePresence>
   );
 }

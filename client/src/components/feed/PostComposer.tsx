@@ -1,6 +1,6 @@
 import React, { useEffect, useRef } from "react";
 import { Image, Smile, Send, X, Loader2 } from "lucide-react";
-import { motion, AnimatePresence } from "framer-motion";
+import { AnimatePresence, m } from "framer-motion";
 import { useAuth } from "../../context/useAuth";
 import type { Post } from "../../types";
 import { usePostComposer } from "../../hooks/usePostComposer";
@@ -97,7 +97,7 @@ export default function PostComposer({
           {/* Error Banner */}
           <AnimatePresence>
             {error && (
-              <motion.div
+              <m.div
                 initial={{ opacity: 0, y: -6 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -6 }}
@@ -111,7 +111,7 @@ export default function PostComposer({
                 >
                   <X size={12} />
                 </button>
-              </motion.div>
+              </m.div>
             )}
           </AnimatePresence>
 
@@ -129,7 +129,7 @@ export default function PostComposer({
           {/* Media Preview Container */}
           <AnimatePresence>
             {previewUrl && (
-              <motion.div
+              <m.div
                 initial={{ opacity: 0, scale: 0.98 }}
                 animate={{ opacity: 1, scale: 1 }}
                 exit={{ opacity: 0, scale: 0.98 }}
@@ -169,14 +169,14 @@ export default function PostComposer({
                     </span>
                   </div>
                 )}
-              </motion.div>
+              </m.div>
             )}
           </AnimatePresence>
 
           {/* Emoji Popover Drawer */}
           <AnimatePresence>
             {showEmojiPicker && (
-              <motion.div
+              <m.div
                 initial={{ opacity: 0, y: 4 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: 4 }}
@@ -192,7 +192,7 @@ export default function PostComposer({
                     {emoji}
                   </button>
                 ))}
-              </motion.div>
+              </m.div>
             )}
           </AnimatePresence>
 
@@ -262,7 +262,7 @@ export default function PostComposer({
               </div>
 
               {/* Submit Button */}
-              <motion.button
+              <m.button
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
                 disabled={!content.trim() || isOverLimit || isLoading}
@@ -280,7 +280,7 @@ export default function PostComposer({
                     <Send size={13} />
                   </>
                 )}
-              </motion.button>
+              </m.button>
             </div>
           </div>
         </form>

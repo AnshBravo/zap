@@ -1,7 +1,7 @@
 import { Link } from "react-router-dom";
 import { useTheme } from "../context/useTheme";
 import { Sun, Moon, ArrowRight, AlertCircle } from "lucide-react";
-import { motion } from "framer-motion";
+import { m } from "framer-motion";
 import {
   PageTransition,
   FadeIn,
@@ -27,7 +27,7 @@ export default function LoginPage() {
     <PageTransition className="min-h-screen flex flex-col justify-center items-center bg-white dark:bg-black text-black dark:text-white p-4 transition-colors">
       {/* Theme Toggle Button */}
       <div className="absolute top-6 right-6">
-        <motion.button
+        <m.button
           whileHover={{ scale: 1.05 }}
           whileTap={{ scale: 0.95 }}
           onClick={toggleTheme}
@@ -35,7 +35,7 @@ export default function LoginPage() {
           aria-label="Toggle theme"
         >
           {theme === "dark" ? <Sun size={18} /> : <Moon size={18} />}
-        </motion.button>
+        </m.button>
       </div>
 
       {/* Login Card */}
@@ -98,7 +98,7 @@ export default function LoginPage() {
             />
           </div>
 
-          <motion.button
+          <m.button
             whileHover={{ scale: 1.01 }}
             whileTap={{ scale: 0.98 }}
             type="submit"
@@ -112,7 +112,7 @@ export default function LoginPage() {
                 Log In <ArrowRight size={16} />
               </>
             )}
-          </motion.button>
+          </m.button>
         </form>
 
         {/* Footer Link */}

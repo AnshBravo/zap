@@ -14,7 +14,7 @@ import {
   Moon,
   PlusSquare,
 } from "lucide-react";
-import { motion } from "framer-motion";
+import { m } from "framer-motion";
 
 export function Sidebar({ onCreatePost }: { onCreatePost: () => void }) {
   const { user, logout } = useAuth();
@@ -75,7 +75,7 @@ export function Sidebar({ onCreatePost }: { onCreatePost: () => void }) {
           </nav>
 
           {/* Quick Post Button */}
-          <motion.button
+          <m.button
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.98 }}
             onClick={onCreatePost}
@@ -83,7 +83,7 @@ export function Sidebar({ onCreatePost }: { onCreatePost: () => void }) {
           >
             <PlusSquare size={18} />
             <span className="hidden xl:inline">Create a Post</span>
-          </motion.button>
+          </m.button>
         </div>
 
         {/* Bottom Profile & Utilities */}

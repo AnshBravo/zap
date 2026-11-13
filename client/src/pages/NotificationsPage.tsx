@@ -1,5 +1,4 @@
 import { Heart, MessageCircle, UserPlus, Zap, BellOff } from "lucide-react";
-import { motion } from "framer-motion";
 import { useAuth } from "../context/useAuth";
 import type { NotificationItem } from "../types";
 import { useNotifications } from "../hooks/useNotifications";
@@ -52,15 +51,13 @@ export default function NotificationsPage() {
               activeTab === tab
                 ? "text-black dark:text-white"
                 : "text-pure-gray-light dark:text-pure-gray-dark hover:text-black dark:hover:text-white"
+            } ${
+              activeTab === tab
+                ? "after:absolute after:bottom-0 after:left-0 after:right-0 after:h-0.5 after:bg-black dark:after:bg-white"
+                : ""
             }`}
           >
             {tab}
-            {activeTab === tab && (
-              <motion.div
-                layoutId="notificationTabIndicator"
-                className="absolute bottom-0 left-0 right-0 h-0.5 bg-black dark:bg-white"
-              />
-            )}
           </button>
         ))}
       </div>

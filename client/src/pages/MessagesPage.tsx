@@ -6,7 +6,7 @@ import {
   CheckCheck,
   Loader2,
 } from "lucide-react";
-import { motion } from "framer-motion";
+import { m } from "framer-motion";
 import { useMessages } from "../hooks/useMessages";
 
 export default function MessagesPage() {
@@ -197,7 +197,7 @@ export default function MessagesPage() {
                 (messages[selectedConversation.id] || []).map((msg) => {
                   const isMe = msg.senderId === (user?.id || "");
                   return (
-                    <motion.div
+                    <m.div
                       key={msg.id}
                       initial={{ opacity: 0, y: 5 }}
                       animate={{ opacity: 1, y: 0 }}
@@ -221,7 +221,7 @@ export default function MessagesPage() {
                           />
                         )}
                       </div>
-                    </motion.div>
+                    </m.div>
                   );
                 })
               ) : (
@@ -253,7 +253,7 @@ export default function MessagesPage() {
                 </span>
               )}
 
-              <motion.button
+              <m.button
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
                 disabled={!inputText.trim()}
@@ -261,7 +261,7 @@ export default function MessagesPage() {
                 className="p-2.5 rounded-xl bg-black text-white dark:bg-white dark:text-black disabled:opacity-40 disabled:cursor-not-allowed transition-opacity"
               >
                 <Send size={16} />
-              </motion.button>
+              </m.button>
             </form>
           </>
         ) : (

@@ -9,7 +9,7 @@ import {
   Bookmark,
   Clapperboard,
 } from "lucide-react";
-import { motion } from "framer-motion";
+import { m } from "framer-motion";
 import EditProfileModal from "../components/EditProfileModal";
 import PostCard from "../components/feed/PostCard";
 import { useProfile } from "../hooks/useProfile";
@@ -106,7 +106,7 @@ export default function ProfilePage() {
       <div className="px-4 sm:px-6 pt-3 pb-4 border-b border-pure-border-light dark:border-pure-border-dark">
         <div className="flex justify-end mb-3">
           {isOwnProfile ? (
-            <motion.button
+            <m.button
               type="button"
               onClick={() => setEditModalOpen(true)}
               whileHover={{ scale: 1.02 }}
@@ -115,9 +115,9 @@ export default function ProfilePage() {
             >
               <Edit3 size={14} />
               Edit Profile
-            </motion.button>
+            </m.button>
           ) : (
-            <motion.button
+            <m.button
               type="button"
               onClick={() => void toggleFollow()}
               disabled={followLoading}
@@ -134,7 +134,7 @@ export default function ProfilePage() {
                 : isFollowing
                   ? "Following"
                   : "Follow"}
-            </motion.button>
+            </m.button>
           )}
         </div>
 
@@ -207,18 +207,12 @@ export default function ProfilePage() {
                 onClick={() => changeTab(tab.id)}
                 className={`flex-1 py-3 text-xs sm:text-sm font-bold transition-all relative flex items-center justify-center gap-2 ${
                   activeTab === tab.id
-                    ? "text-black dark:text-white"
+                    ? "text-black dark:text-white after:absolute after:bottom-0 after:left-0 after:right-0 after:h-0.5 after:bg-black dark:after:bg-white"
                     : "text-pure-gray-light dark:text-pure-gray-dark hover:text-black dark:hover:text-white"
                 }`}
               >
                 <Icon size={15} />
                 <span>{tab.label}</span>
-                {activeTab === tab.id && (
-                  <motion.div
-                    layoutId="profileTabIndicator"
-                    className="absolute bottom-0 left-0 right-0 h-0.5 bg-black dark:bg-white"
-                  />
-                )}
               </button>
             );
           })}
